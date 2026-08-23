@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Google Places API Lead Collection & Preview – TechvionNova CRM">
+    <title>Google Places Search | TechvionNova CRM</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app-layout" id="app">
+        <!-- Sidebar injected by JS -->
+        <div class="main-wrapper">
+            <!-- Topbar injected by JS -->
+            <div id="topbarContainer"></div>
+
+            <main class="content-body">
+                <!-- Search Query Builder Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg> Search Google Places (New)</div>
+                        <span style="font-size:12px; color:var(--text-muted);">Real-time business discovery</span>
+                    </div>
+
+                    <form id="searchForm" onsubmit="handleSearch(event)">
+                        <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+                            <div class="form-group">
+                                <label for="cityInput">City *</label>
+                                <input type="text" id="cityInput" value="Mumbai" placeholder="e.g. Mumbai" required oninput="updateKeyword()">
+                            </div>
+                            <div class="form-group">
+                                <label for="stateInput">State</label>
+                                <input type="text" id="stateInput" value="Maharashtra" placeholder="e.g. Maharashtra" oninput="updateKeyword()">
+                            </div>
+                            <div class="form-group">
+                                <label for="countryInput">Country</label>
+                                <input type="text" id="countryInput" value="India" readonly style="background:var(--surface-alt);">
+                            </div>
+                            <div class="form-group">
+                                <label for="typeSelect">Business Category</label>
+                                <select id="typeSelect" onchange="updateKeyword()"></select>
+                            </div>
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label for="keywordInput">Generated Search Query</label>
+                                <input type="text" id="keywordInput" value="Cafe in Mumbai, Maharashtra, India" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="pageSize">Max Results</label>
+                                <select id="pageSize">
+                                    <option value="20" selected>20 (1 page)</option>
+                                    <option value="40">40 (2 pages)</option>
+                                    <option value="60">60 (3 pages - max)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; align-items: center; margin-top: 18px; flex-wrap: wrap;">
+                            <button type="submit" class="btn btn-primary" id="searchBtn">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg> Search Google Places
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="clearForm()">
+                                Clear
+                            </button>
+                            <span id="searchStatus" style="font-size: 12.5px; color: var(--text-secondary); margin-left: 8px;"></span>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Preview Results Card -->
+                <div class="card" id="resultsContainer" style="display: none;">
+                    <div class="card-header">
+                        <div>
+                            <span class="card-title">Search Results Preview</span>
+                            <span id="resultsCount" style="font-size: 12px; color: var(--text-secondary); margin-left: 6px;"></span>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary btn-sm" onclick="importSelected()" id="importSelectedBtn" disabled>
+                                📥 Import Selected (<span id="selectedCount">0</span>)
+                            </button>
+                            <button class="btn btn-primary btn-sm" onclick="importAll()" id="importAllBtn">
+                                ⚡ Import All
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="data-table" id="previewTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 36px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th>
+                                    <th>Business</th>
+                                    <th>Address</th>
+                                    <th>Phone</th>
+                                    <th>Website</th>
+                                    <th>Rating</th>
+                                    <th>Reviews</th>
+                                    <th>Status</th>
+                                    <th>Maps</th>
+                                    <th>Place ID</th>
+                                    <th>Import Status</th>
+                                    <th style="text-align: right;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="previewBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Duplicate Conflict Modal -->
+    <div class="modal-overlay" id="duplicateModal">
+        <div class="modal" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3>⚠️ Duplicate Lead Detected</h3>
+                <button class="modal-close" onclick="closeDuplicateModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p id="dupModalMessage" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;"></p>
+                <div style="background: var(--surface-alt); padding: 14px; border-radius: var(--radius-md); font-size: 12.5px; border: 1px solid var(--border);" id="dupModalDetails"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDuplicateModal()">Skip Duplicate</button>
+                <button class="btn btn-primary" onclick="confirmUpdateDuplicate()">Update Existing Lead</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        const topActionsHtml = `
+            <a href="jobs.html" class="btn btn-secondary btn-sm">${getIcon('jobs')} Collection Jobs</a>
+            <a href="settings.html#google-api" class="btn btn-secondary btn-sm">${getIcon('settings')} API Settings</a>
+        `;
+        document.getElementById('topbarContainer').innerHTML = renderTopNav('Google Places Search', 'Discover businesses via official Places API (New) and import to CRM.', topActionsHtml);
+        document.getElementById('app').insertAdjacentHTML('afterbegin', renderSidebar('collect'));
+
+        let currentPlaces = [];
+        let selectedPlaces = new Set();
+        let pendingDupPlace = null;
+        let pendingDupRowIndex = null;
+
+        async function init() {
+            try {
+                const status = await api.getGoogleStatus();
+                const typeSelect = document.getElementById('typeSelect');
+                if (status.business_types) {
+                    typeSelect.innerHTML = status.business_types.map(t => `<option value="${t}">${t}</option>`).join('');
+                }
+                if (!status.configured) {
+                    showToast('Google Places API key is not configured. Visit Settings to set it.', 'warning');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function updateKeyword() {
+            const city = document.getElementById('cityInput').value.trim();
+            const state = document.getElementById('stateInput').value.trim();
+            const btype = document.getElementById('typeSelect').value;
+            let parts = [btype];
+            if (city) parts.push(`in ${city}`);
+            if (state) parts.push(state);
+            parts.push('India');
+            document.getElementById('keywordInput').value = parts.join(', ');
+        }
+
+        function clearForm() {
+            document.getElementById('cityInput').value = '';
+            document.getElementById('stateInput').value = '';
+            document.getElementById('keywordInput').value = '';
+            document.getElementById('resultsContainer').style.display = 'none';
+            currentPlaces = [];
+            selectedPlaces.clear();
+        }
+
+        async function handleSearch(e) {
+            e.preventDefault();
+            const btn = document.getElementById('searchBtn');
+            const status = document.getElementById('searchStatus');
+            const query = document.getElementById('keywordInput').value.trim();
+            const city = document.getElementById('cityInput').value.trim();
+            const business_type = document.getElementById('typeSelect').value;
+            const pageSize = parseInt(document.getElementById('pageSize').value, 10);
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-dark"></span> Searching Google Places…';
+            status.textContent = 'Contacting official Google Places API…';
+
+            try {
+                const res = await api.searchPlaces({ query, city, business_type, pageSize });
+                currentPlaces = res.places || [];
+                selectedPlaces.clear();
+                renderPreviewTable(currentPlaces);
+                document.getElementById('resultsContainer').style.display = 'block';
+                document.getElementById('resultsCount').textContent = `(${currentPlaces.length} businesses found)`;
+                status.textContent = `✓ Found ${currentPlaces.length} results`;
+                showToast(`Found ${currentPlaces.length} places`, 'success');
+            } catch (err) {
+                status.textContent = '';
+                showToast(err.message, 'error');
+                alert(`Google Places API Error:\n${err.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `${getIcon('search')} Search Google Places`;
+            }
+        }
+
+        function renderPreviewTable(places) {
+            const tbody = document.getElementById('previewBody');
+            if (!places.length) {
+                tbody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding: 24px; color: var(--text-muted);">No results found. Try adjusting your query or city.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = places.map((p, idx) => {
+                const isDup = p.is_duplicate;
+                const statusBadge = isDup 
+                    ? `<span class="badge badge-outdated" title="${p.duplicate_reason || 'Duplicate'}">Duplicate (${p.existing_lead_id || 'CRM'})</span>` 
+                    : '<span class="badge badge-unknown">New Lead</span>';
+
+                const mapsLink = p.google_maps_url 
+                    ? `<a href="${p.google_maps_url}" target="_blank" style="color:var(--primary); font-size:12px;">🗺️ View</a>` 
+                    : '—';
+
+                const webLink = p.current_website 
+                    ? `<a href="${p.current_website}" target="_blank" class="website-pill">${esc(p.current_website.replace(/^https?:\/\/(www\.)?/, '').substring(0, 16))}</a>` 
+                    : '<span style="color:var(--text-muted); font-size:12px;">No Website</span>';
+
+                return `
+                    <tr id="row-${idx}">
+                        <td>
+                            <input type="checkbox" onchange="toggleSelectPlace(${idx}, this.checked)" ${selectedPlaces.has(idx) ? 'checked' : ''}>
+                        </td>
+                        <td>
+                            <div class="business-cell">
+                                <span class="business-name">${esc(p.business_name)}</span>
+                                <span class="business-source">${esc(p.business_type || 'Business')}</span>
+                            </div>
+                        </td>
+                        <td style="max-width: 200px; font-size: 12px; color: var(--text-secondary); overflow:hidden; text-overflow:ellipsis;">${esc(p.address || '—')}</td>
+                        <td style="font-family:var(--font-mono); font-size:12px;">${esc(p.phone || '—')}</td>
+                        <td>${webLink}</td>
+                        <td><strong>${p.rating !== null && p.rating !== undefined ? p.rating : '—'}</strong> ⭐</td>
+                        <td><span style="font-size:12px; color:var(--text-secondary);">${p.review_count || 0}</span></td>
+                        <td><span class="badge ${p.business_status === 'OPERATIONAL' ? 'badge-good' : 'badge-broken'}">${p.business_status || 'Unknown'}</span></td>
+                        <td>${mapsLink}</td>
+                        <td><code style="font-size:11px; color:var(--text-muted);">${p.place_id ? p.place_id.substring(0, 10) + '…' : '—'}</code></td>
+                        <td id="status-col-${idx}">${statusBadge}</td>
+                        <td style="text-align: right;">
+                            <button class="btn btn-primary btn-sm" onclick="importSingle(${idx})" id="import-btn-${idx}">
+                                ${isDup ? 'Update' : 'Import'}
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            updateSelectedUI();
+        }
+
+        function esc(str) {
+            return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        function toggleSelectAll(masterCheckbox) {
+            const checked = masterCheckbox.checked;
+            currentPlaces.forEach((_, idx) => {
+                if (checked) selectedPlaces.add(idx);
+                else selectedPlaces.delete(idx);
+            });
+            renderPreviewTable(currentPlaces);
+        }
+
+        function toggleSelectPlace(idx, checked) {
+            if (checked) selectedPlaces.add(idx);
+            else selectedPlaces.delete(idx);
+            updateSelectedUI();
+        }
+
+        function updateSelectedUI() {
+            const count = selectedPlaces.size;
+            document.getElementById('selectedCount').textContent = count;
+            document.getElementById('importSelectedBtn').disabled = count === 0;
+            document.getElementById('selectAll').checked = count === currentPlaces.length && count > 0;
+        }
+
+        async function importSingle(idx, forceUpdate = false) {
+            const place = currentPlaces[idx];
+            const btn = document.getElementById(`import-btn-${idx}`);
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-dark"></span>';
+
+            try {
+                const res = await api.importPlace(place, forceUpdate);
+                if (res.duplicate && !forceUpdate) {
+                    pendingDupPlace = place;
+                    pendingDupRowIndex = idx;
+                    document.getElementById('dupModalMessage').textContent = res.message || 'This business already exists in your CRM.';
+                    document.getElementById('dupModalDetails').innerHTML = `
+                        <strong>Existing Lead ID:</strong> ${res.existing_lead.lead_id}<br>
+                        <strong>Business:</strong> ${res.existing_lead.business_name}<br>
+                        <strong>City:</strong> ${res.existing_lead.city}<br>
+                        <strong>Reason:</strong> ${res.reason}
+                    `;
+                    document.getElementById('duplicateModal').classList.add('active');
+                    btn.disabled = false;
+                    btn.textContent = 'Update';
+                    return;
+                }
+
+                document.getElementById(`status-col-${idx}`).innerHTML = `<span class="badge badge-good">✓ ${res.lead ? res.lead.lead_id : 'Imported'}</span>`;
+                btn.disabled = true;
+                btn.textContent = '✓ Done';
+                showToast(res.message || 'Imported to CRM', 'success');
+            } catch (e) {
+                showToast(e.message, 'error');
+                btn.disabled = false;
+                btn.textContent = 'Import';
+            }
+        }
+
+        function closeDuplicateModal() {
+            document.getElementById('duplicateModal').classList.remove('active');
+            pendingDupPlace = null;
+            pendingDupRowIndex = null;
+        }
+
+        async function confirmUpdateDuplicate() {
+            if (pendingDupRowIndex !== null) {
+                const idx = pendingDupRowIndex;
+                closeDuplicateModal();
+                await importSingle(idx, true);
+            }
+        }
+
+        async function importSelected() {
+            if (!selectedPlaces.size) return;
+            const placesToImport = Array.from(selectedPlaces).map(idx => currentPlaces[idx]);
+            const btn = document.getElementById('importSelectedBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-dark"></span> Importing…';
+
+            try {
+                const res = await api.importBulkPlaces(placesToImport, false);
+                showToast(`Imported ${res.imported} leads (${res.skipped} skipped duplicates)`, 'success');
+                const query = document.getElementById('keywordInput').value.trim();
+                const city = document.getElementById('cityInput').value.trim();
+                const business_type = document.getElementById('typeSelect').value;
+                const searchRes = await api.searchPlaces({ query, city, business_type });
+                currentPlaces = searchRes.places || [];
+                selectedPlaces.clear();
+                renderPreviewTable(currentPlaces);
+            } catch (e) {
+                showToast(e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = `📥 Import Selected (${selectedPlaces.size})`;
+            }
+        }
+
+        async function importAll() {
+            if (!currentPlaces.length) return;
+            if (!confirm(`Import all ${currentPlaces.length} places into your CRM? Duplicates will be safely skipped.`)) return;
+
+            const btn = document.getElementById('importAllBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-dark"></span> Importing…';
+
+            try {
+                const res = await api.importBulkPlaces(currentPlaces, false);
+                showToast(`Successfully imported ${res.imported} leads! (${res.skipped} duplicates skipped)`, 'success');
+                currentPlaces.forEach((p, idx) => {
+                    document.getElementById(`status-col-${idx}`).innerHTML = '<span class="badge badge-good">✓ Imported</span>';
+                    document.getElementById(`import-btn-${idx}`).disabled = true;
+                });
+            } catch (e) {
+                showToast(e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '⚡ Import All';
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

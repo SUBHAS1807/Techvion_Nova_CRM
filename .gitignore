@@ -1,0 +1,23 @@
+# Environment & Secrets
+.env
+.env.local
+*.key
+google_api_key.txt
+
+# Python & Virtual Env
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# Database
+*.db
+*.sqlite3
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

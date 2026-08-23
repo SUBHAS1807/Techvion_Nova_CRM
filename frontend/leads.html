@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="TechvionNova CRM – Complete Lead Management Table">
+    <title>Leads Management | TechvionNova CRM</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app-layout" id="app">
+        <!-- Sidebar injected by JS -->
+        <div class="main-wrapper">
+            <!-- Topbar injected by JS -->
+            <div id="topbarContainer"></div>
+
+            <main class="content-body">
+                <!-- Top Statistics KPI Cards -->
+                <div class="stats-grid" id="statsGrid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Total Leads</span>
+                            <div class="stat-icon-wrap">📋</div>
+                        </div>
+                        <div class="stat-value-row">
+                            <span class="stat-number" id="stat_total">—</span>
+                            <span class="stat-trend trend-up">↑ 12.4%</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">New Leads</span>
+                            <div class="stat-icon-wrap">✨</div>
+                        </div>
+                        <div class="stat-value-row">
+                            <span class="stat-number" id="stat_new">—</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Emails Found</span>
+                            <div class="stat-icon-wrap">✉️</div>
+                        </div>
+                        <div class="stat-value-row">
+                            <span class="stat-number" id="stat_emails" style="color:var(--success);">—</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Interested</span>
+                            <div class="stat-icon-wrap">🔥</div>
+                        </div>
+                        <div class="stat-value-row">
+                            <span class="stat-number" id="stat_interested" style="color:#7c3aed;">—</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Deals Won</span>
+                            <div class="stat-icon-wrap">🤝</div>
+                        </div>
+                        <div class="stat-value-row">
+                            <span class="stat-number" id="stat_deals" style="color:var(--success);">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Search & Filter Card -->
+                <div class="filter-card">
+                    <div class="filter-main-row">
+                        <!-- Dominant Search Input -->
+                        <div class="search-input-wrapper">
+                            <span class="search-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
+                            <input type="text" id="searchInput" placeholder="Search by business name, city, phone, email, Place ID…" oninput="debounceSearch()" autocomplete="off" />
+                            <button id="searchClearBtn" class="search-clear-btn" onclick="clearSearch()" title="Clear search">✕</button>
+                        </div>
+
+                        <!-- Main Filters Dropdown -->
+                        <div class="filter-dropdowns">
+                            <select id="filterCity" class="filter-select" onchange="applyFilters()">
+                                <option value="">All Cities</option>
+                            </select>
+                            <select id="filterType" class="filter-select" onchange="applyFilters()">
+                                <option value="">All Types</option>
+                            </select>
+                            <select id="filterWebsiteStatus" class="filter-select" onchange="applyFilters()">
+                                <option value="">Website Status</option>
+                                <option value="No Website">No Website</option>
+                                <option value="Good">Good</option>
+                                <option value="Outdated">Outdated</option>
+                                <option value="Broken">Broken</option>
+                                <option value="Under Construction">Under Construction</option>
+                                <option value="E-commerce Website">E-commerce</option>
+                                <option value="Booking Website">Booking</option>
+                            </select>
+                            <select id="filterOutreach" class="filter-select" onchange="applyFilters()">
+                                <option value="">Outreach Status</option>
+                                <option value="Not Contacted">Not Contacted</option>
+                                <option value="Contacted">Contacted</option>
+                                <option value="Follow-up">Follow-up</option>
+                                <option value="Completed">Completed</option>
+                                <option value="Do Not Contact">Do Not Contact</option>
+                            </select>
+                            <select id="filterDeal" class="filter-select" onchange="applyFilters()">
+                                <option value="">Deal Status</option>
+                                <option value="Open">Open</option>
+                                <option value="Negotiation">Negotiation</option>
+                                <option value="Won">Won</option>
+                                <option value="Lost">Lost</option>
+                            </select>
+
+                            <button class="btn btn-secondary btn-sm" onclick="toggleMoreFilters()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg> More Filters
+                            </button>
+
+                            <div style="position: relative;">
+                                <button class="btn btn-secondary btn-sm" onclick="toggleColumnCustomizer(event)">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="3" x2="12" y2="21"></line></svg> Columns
+                                </button>
+                                <!-- Column Customizer Popover -->
+                                <div class="column-popover" id="columnPopover">
+                                    <div class="column-popover-title">Toggle Columns</div>
+                                    <div class="column-checkbox-list" id="columnCheckboxList"></div>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-ghost btn-sm" onclick="clearAllFilters()" title="Reset all filters">
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- More Filters Collapsible Panel -->
+                    <div class="more-filters-panel" id="moreFiltersPanel">
+                        <div class="form-group">
+                            <label>Response Status</label>
+                            <select id="filterResponse" class="filter-select" onchange="applyFilters()">
+                                <option value="">All Responses</option>
+                                <option value="No Response">No Response</option>
+                                <option value="Replied">Replied</option>
+                                <option value="Positive">Positive</option>
+                                <option value="Negative">Negative</option>
+                                <option value="Interested">Interested</option>
+                                <option value="Not Interested">Not Interested</option>
+                                <option value="Needs Follow-up">Needs Follow-up</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Email Filter</label>
+                            <select id="filterEmailPresence" class="filter-select" onchange="applyFilters()">
+                                <option value="">All Leads</option>
+                                <option value="with_email">Has Public Email</option>
+                                <option value="no_email">No Email</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Phone Filter</label>
+                            <select id="filterPhonePresence" class="filter-select" onchange="applyFilters()">
+                                <option value="">All Leads</option>
+                                <option value="with_phone">Has Phone Number</option>
+                                <option value="no_phone">No Phone</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bulk Action Floating Bar -->
+                <div class="bulk-action-bar" id="bulkBar">
+                    <div class="bulk-left">
+                        <span id="selectedCount">0 Leads Selected</span>
+                    </div>
+                    <div class="bulk-right">
+                        <button class="btn btn-secondary btn-sm" onclick="bulkAnalyzeWebsites()">🌐 Analyze Websites</button>
+                        <button class="btn btn-secondary btn-sm" onclick="bulkChangeOutreach()">📞 Mark Contacted</button>
+                        <button class="btn btn-secondary btn-sm" onclick="bulkSetFollowup()">📅 Set Follow-up</button>
+                        <button class="btn btn-secondary btn-sm" onclick="exportCsv('selected')">📥 Export</button>
+                        <button class="btn btn-danger btn-sm" onclick="bulkDeleteSelected()">🗑 Delete</button>
+                        <button class="btn btn-ghost btn-sm" onclick="deselectAll()">Deselect</button>
+                    </div>
+                </div>
+
+                <!-- Leads Table Container -->
+                <div class="table-container">
+                    <div class="table-responsive">
+                        <table class="data-table" id="leadsTable">
+                            <thead>
+                                <tr id="tableHeaderRow">
+                                    <th style="width: 36px;"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th>
+                                    <th data-col="id">Lead ID</th>
+                                    <th data-col="business">Business</th>
+                                    <th data-col="owner">Owner</th>
+                                    <th data-col="type">Type</th>
+                                    <th data-col="city">City</th>
+                                    <th data-col="phone">Phone</th>
+                                    <th data-col="email">Email</th>
+                                    <th data-col="website">Website</th>
+                                    <th data-col="web_status">Website Status</th>
+                                    <th data-col="score">Score</th>
+                                    <th data-col="outreach">Outreach</th>
+                                    <th data-col="response">Response</th>
+                                    <th data-col="deal">Deal</th>
+                                    <th data-col="followup">Follow-up</th>
+                                    <th data-col="actions" style="text-align: right;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leadsBody">
+                                <!-- Rendered dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination Controls -->
+                    <div class="pagination-wrapper">
+                        <div class="pagination-left">
+                            <span id="pageInfo">Showing 0–0 of 0 leads</span>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span>Rows per page:</span>
+                                <select id="pageSizeSelect" class="filter-select" style="padding: 3px 8px; font-size: 12px;" onchange="changePageSize(this.value)">
+                                    <option value="10">10</option>
+                                    <option value="25" selected>25</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="pagination-right" id="paginationButtons">
+                            <button class="page-btn" id="prevBtn" onclick="prevPage()" disabled>← Prev</button>
+                            <div id="pageNumbers" style="display: flex; gap: 4px;"></div>
+                            <button class="page-btn" id="nextBtn" onclick="nextPage()">Next →</button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- ══════ Slide-over Right Lead Details Drawer ══════ -->
+    <div class="drawer-backdrop" id="drawerBackdrop" onclick="closeDrawer()"></div>
+    <div class="drawer" id="leadDrawer">
+        <div class="drawer-header">
+            <div class="drawer-header-left">
+                <h3 class="drawer-title" id="drawerBusinessName">—</h3>
+                <span class="drawer-subtitle" id="drawerBusinessMeta">—</span>
+            </div>
+            <div class="drawer-actions">
+                <button class="btn btn-secondary btn-sm" onclick="openEditModalFromDrawer()">✏️ Edit</button>
+                <button class="modal-close" onclick="closeDrawer()" title="Close Drawer">✕</button>
+            </div>
+        </div>
+
+        <div class="drawer-body">
+            <!-- Business Info -->
+            <div class="drawer-section">
+                <div class="drawer-section-title">🏢 Business Information</div>
+                <div class="drawer-grid">
+                    <div class="drawer-item"><span class="drawer-label">Business Name</span><span class="drawer-val" id="dr_name">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Owner Name</span><span class="drawer-val" id="dr_owner">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Business Type</span><span class="drawer-val" id="dr_type">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">City</span><span class="drawer-val" id="dr_city">—</span></div>
+                    <div class="drawer-item-full drawer-item"><span class="drawer-label">Address</span><span class="drawer-val" id="dr_address">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Google Rating</span><span class="drawer-val" id="dr_rating">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Google Reviews</span><span class="drawer-val" id="dr_reviews">—</span></div>
+                    <div class="drawer-item-full drawer-item"><span class="drawer-label">Google Place ID</span><span class="drawer-val" id="dr_place_id">—</span></div>
+                </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="drawer-section">
+                <div class="drawer-section-title">📞 Contact & Profiles</div>
+                <div class="drawer-grid">
+                    <div class="drawer-item"><span class="drawer-label">Phone</span><span class="drawer-val" id="dr_phone">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Email</span><span class="drawer-val" id="dr_email">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Instagram</span><span class="drawer-val" id="dr_instagram">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Facebook</span><span class="drawer-val" id="dr_facebook">—</span></div>
+                </div>
+            </div>
+
+            <!-- Online Presence & Instant Analyzer -->
+            <div class="drawer-section">
+                <div class="drawer-section-title">
+                    <span>🌐 Online Presence</span>
+                    <button class="btn btn-secondary btn-sm" id="drAnalyzeBtn" onclick="triggerDrawerAnalyze()">Analyze Website</button>
+                </div>
+                <div class="drawer-grid">
+                    <div class="drawer-item-full drawer-item"><span class="drawer-label">Website</span><span class="drawer-val" id="dr_website">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Website Status</span><span class="drawer-val" id="dr_web_status">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">SSL Certificate</span><span class="drawer-val" id="dr_ssl">—</span></div>
+                </div>
+                <div id="drAnalysisResultBox" style="display:none; margin-top:12px; background:var(--surface-alt); padding:12px; border-radius:var(--radius-md); font-size:12px;"></div>
+            </div>
+
+            <!-- Lead Qualification & Score -->
+            <div class="drawer-section">
+                <div class="drawer-section-title">🎯 Qualification & Score</div>
+                <div class="drawer-grid">
+                    <div class="drawer-item"><span class="drawer-label">Lead Score</span><span class="drawer-val" id="dr_score">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Interested / Agreed</span><span class="drawer-val" id="dr_interested">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Requirement</span><span class="drawer-val" id="dr_req">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Estimated Budget</span><span class="drawer-val" id="dr_budget">—</span></div>
+                </div>
+            </div>
+
+            <!-- Sales Pipeline & Follow-up -->
+            <div class="drawer-section">
+                <div class="drawer-section-title">🚀 Sales Pipeline</div>
+                <div class="drawer-grid">
+                    <div class="drawer-item"><span class="drawer-label">Outreach Status</span><span class="drawer-val" id="dr_outreach">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Response Status</span><span class="drawer-val" id="dr_response">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Proposal</span><span class="drawer-val" id="dr_proposal">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Deal Status</span><span class="drawer-val" id="dr_deal">—</span></div>
+                    <div class="drawer-item-full drawer-item"><span class="drawer-label">Next Follow-up</span><span class="drawer-val" id="dr_next_followup">—</span></div>
+                    <div class="drawer-item-full drawer-item"><span class="drawer-label">Remarks / Notes</span><span class="drawer-val" id="dr_remarks">—</span></div>
+                </div>
+            </div>
+
+            <!-- Activity Timeline -->
+            <div class="drawer-section">
+                <div class="drawer-section-title">
+                    <span>📅 Activity Timeline</span>
+                    <button class="btn btn-secondary btn-sm" onclick="openDrawerActivityModal()">+ Log</button>
+                </div>
+                <div class="timeline" id="drawerTimeline">
+                    <div style="font-size:12px; color:var(--text-muted);">No activity logged yet.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════ Create / Edit Lead Modal ══════ -->
+    <div class="modal-overlay" id="leadModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">New Lead</h3>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <form id="leadForm" class="form-grid">
+                    <div class="form-group">
+                        <label for="f_business_name">Business Name *</label>
+                        <input id="f_business_name" name="business_name" required placeholder="e.g. Blue Tokai Cafe">
+                    </div>
+                    <div class="form-group">
+                        <label for="f_owner_name">Owner Name</label>
+                        <input id="f_owner_name" name="owner_name" placeholder="Owner / Manager name">
+                    </div>
+                    <div class="form-group">
+                        <label for="f_business_type">Business Type *</label>
+                        <input id="f_business_type" name="business_type" value="Cafe" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="f_city">City *</label>
+                        <input id="f_city" name="city" required placeholder="e.g. Mumbai">
+                    </div>
+                    <div class="form-group">
+                        <label for="f_phone">Phone</label>
+                        <input id="f_phone" name="phone" placeholder="+91 98765 43210">
+                    </div>
+                    <div class="form-group">
+                        <label for="f_email">Email</label>
+                        <input id="f_email" name="email" type="email" placeholder="contact@business.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="f_website">Current Website</label>
+                        <input id="f_website" name="current_website" placeholder="https://example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="f_website_status">Website Status</label>
+                        <select id="f_website_status" name="website_status">
+                            <option value="No Website">No Website</option>
+                            <option value="Good">Good</option>
+                            <option value="Outdated">Outdated</option>
+                            <option value="Broken">Broken</option>
+                            <option value="Under Construction">Under Construction</option>
+                            <option value="E-commerce Website">E-commerce</option>
+                            <option value="Booking Website">Booking</option>
+                            <option value="Unknown">Unknown</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="f_instagram">Instagram</label>
+                        <input id="f_instagram" name="instagram" placeholder="@handle">
+                    </div>
+                    <div class="form-group">
+                        <label for="f_facebook">Facebook</label>
+                        <input id="f_facebook" name="facebook" placeholder="fb.com/page">
+                    </div>
+                    <div class="form-group">
+                        <label for="f_outreach_status">Outreach Status</label>
+                        <select id="f_outreach_status" name="outreach_status">
+                            <option value="Not Contacted">Not Contacted</option>
+                            <option value="Contacted">Contacted</option>
+                            <option value="Follow-up">Follow-up</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Do Not Contact">Do Not Contact</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="f_response_status">Response Status</label>
+                        <select id="f_response_status" name="response_status">
+                            <option value="No Response">No Response</option>
+                            <option value="Replied">Replied</option>
+                            <option value="Positive">Positive</option>
+                            <option value="Negative">Negative</option>
+                            <option value="Interested">Interested</option>
+                            <option value="Not Interested">Not Interested</option>
+                            <option value="Needs Follow-up">Needs Follow-up</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="f_deal_status">Deal Status</label>
+                        <select id="f_deal_status" name="deal_status">
+                            <option value="Open">Open</option>
+                            <option value="Negotiation">Negotiation</option>
+                            <option value="Won">Won</option>
+                            <option value="Lost">Lost</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="f_estimated_budget">Estimated Budget</label>
+                        <input id="f_estimated_budget" name="estimated_budget" placeholder="₹25,000">
+                    </div>
+                    <div class="form-group span-full">
+                        <label for="f_remarks">Remarks / Notes</label>
+                        <textarea id="f_remarks" name="remarks" rows="2" placeholder="Key notes on customer requirement..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveLead()">Save Lead</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════ CSV Import Modal ══════ -->
+    <div class="modal-overlay" id="importModal">
+        <div class="modal" style="max-width: 520px;">
+            <div class="modal-header">
+                <h3>📁 Import Leads from CSV</h3>
+                <button class="modal-close" onclick="closeImportModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 12.5px; color: var(--text-secondary); margin-bottom: 14px;">
+                    Upload a CSV file with business leads. Columns are auto-mapped and duplicates are automatically identified.
+                </p>
+                <div class="form-group">
+                    <input type="file" id="csvFileInput" accept=".csv" style="padding: 20px; border: 2px dashed var(--border); border-radius: var(--radius-lg); text-align: center; width: 100%; cursor: pointer;">
+                </div>
+                <div id="importSummary" style="margin-top: 14px;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+                <button class="btn btn-primary" id="uploadCsvBtn" onclick="uploadCsv()">Upload & Import</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════ Log Activity Modal ══════ -->
+    <div class="modal-overlay" id="activityModal">
+        <div class="modal" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3>📝 Log Activity / Outreach</h3>
+                <button class="modal-close" onclick="closeActivityModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <form id="activityForm" class="form-grid" style="grid-template-columns: 1fr;">
+                    <div class="form-group">
+                        <label>Activity Type *</label>
+                        <select id="act_type" class="filter-select">
+                            <option value="First Contact Call">First Contact Call</option>
+                            <option value="WhatsApp Message">WhatsApp Message</option>
+                            <option value="Follow-up Call">Follow-up Call</option>
+                            <option value="Client Replied">Client Replied</option>
+                            <option value="Meeting Scheduled">Meeting Scheduled</option>
+                            <option value="Proposal Sent">Proposal Sent</option>
+                            <option value="Proposal Accepted">Proposal Accepted</option>
+                            <option value="Deal Won">Deal Won</option>
+                            <option value="Deal Lost">Deal Lost</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Notes / Details</label>
+                        <textarea id="act_desc" rows="3" placeholder="Discussed website redesign, client interested in online booking menu..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Result / Outcome</label>
+                        <input id="act_result" placeholder="Interested / Call next Monday">
+                    </div>
+                    <div class="form-group">
+                        <label>Next Follow-up Date (Optional)</label>
+                        <input id="act_followup" type="date">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeActivityModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitActivity()">Save Log</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        // Inject Top Navigation
+        const topActionsHtml = `
+            <button class="btn btn-secondary btn-sm" onclick="openImportModal()">📁 Import CSV</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportCsv('filtered')">📥 Export</button>
+            <button class="btn btn-primary btn-sm" onclick="openCreateModal()">${getIcon('plus')} Add Lead</button>
+        `;
+        document.getElementById('topbarContainer').innerHTML = renderTopNav('Leads Management', 'Manage, qualify and convert your business leads.', topActionsHtml);
+        document.getElementById('app').insertAdjacentHTML('afterbegin', renderSidebar('leads'));
+
+        let currentPage = 0;
+        let pageSize = 25;
+        let totalLeads = 0;
+        let currentLeads = [];
+        let selectedLeadIds = new Set();
+        let editingLeadId = null;
+        let activeDrawerLeadId = null;
+        let searchTimeout = null;
+
+        // Column visibility configuration
+        const ALL_COLUMNS = [
+            { id: 'id', name: 'Lead ID', default: true },
+            { id: 'business', name: 'Business', default: true },
+            { id: 'owner', name: 'Owner', default: false },
+            { id: 'type', name: 'Type', default: true },
+            { id: 'city', name: 'City', default: true },
+            { id: 'phone', name: 'Phone', default: true },
+            { id: 'email', name: 'Email', default: true },
+            { id: 'website', name: 'Website', default: true },
+            { id: 'web_status', name: 'Website Status', default: true },
+            { id: 'score', name: 'Score', default: true },
+            { id: 'outreach', name: 'Outreach', default: true },
+            { id: 'response', name: 'Response', default: false },
+            { id: 'deal', name: 'Deal', default: true },
+            { id: 'followup', name: 'Follow-up', default: true },
+            { id: 'actions', name: 'Actions', default: true }
+        ];
+
+        let visibleColumns = new Set(
+            JSON.parse(localStorage.getItem('tvn_visible_columns') || 'null') ||
+            ALL_COLUMNS.filter(c => c.default).map(c => c.id)
+        );
+
+        async function init() {
+            renderColumnCheckboxList();
+            applyColumnVisibility();
+
+            // Read URL search params (e.g. from sidebar quick links)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('outreach')) {
+                document.getElementById('filterOutreach').value = urlParams.get('outreach');
+            }
+            if (urlParams.get('deal')) {
+                document.getElementById('filterDeal').value = urlParams.get('deal');
+            }
+
+            try {
+                const status = await api.getGoogleStatus();
+                const filterCity = document.getElementById('filterCity');
+                const filterType = document.getElementById('filterType');
+                if (status.cities) {
+                    filterCity.innerHTML = '<option value="">All Cities</option>' + status.cities.map(c => `<option value="${c}">${c}</option>`).join('');
+                }
+                if (status.business_types) {
+                    filterType.innerHTML = '<option value="">All Types</option>' + status.business_types.map(t => `<option value="${t}">${t}</option>`).join('');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+            loadLeads();
+            loadStats();
+        }
+
+        async function loadStats() {
+            try {
+                const data = await api.getAnalytics();
+                const cards = data.cards || {};
+                document.getElementById('stat_total').textContent = (cards.total_leads || 0).toLocaleString();
+                document.getElementById('stat_new').textContent = (cards.new_leads || 0).toLocaleString();
+                document.getElementById('stat_emails').textContent = (cards.public_emails || 0).toLocaleString();
+                document.getElementById('stat_interested').textContent = (cards.interested || 0).toLocaleString();
+                document.getElementById('stat_deals').textContent = (cards.deals_won || 0).toLocaleString();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function debounceSearch() {
+            const val = document.getElementById('searchInput').value.trim();
+            document.getElementById('searchClearBtn').style.display = val ? 'block' : 'none';
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                currentPage = 0;
+                loadLeads();
+            }, 250);
+        }
+
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchClearBtn').style.display = 'none';
+            currentPage = 0;
+            loadLeads();
+        }
+
+        function applyFilters() {
+            currentPage = 0;
+            loadLeads();
+        }
+
+        function toggleMoreFilters() {
+            const p = document.getElementById('moreFiltersPanel');
+            p.classList.toggle('active');
+        }
+
+        function clearAllFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchClearBtn').style.display = 'none';
+            document.getElementById('filterCity').value = '';
+            document.getElementById('filterType').value = '';
+            document.getElementById('filterWebsiteStatus').value = '';
+            document.getElementById('filterOutreach').value = '';
+            document.getElementById('filterDeal').value = '';
+            document.getElementById('filterResponse').value = '';
+            document.getElementById('filterEmailPresence').value = '';
+            document.getElementById('filterPhonePresence').value = '';
+            currentPage = 0;
+            loadLeads();
+        }
+
+        async function loadLeads() {
+            const q = document.getElementById('searchInput').value.trim();
+            const city = document.getElementById('filterCity').value;
+            const business_type = document.getElementById('filterType').value;
+            const website_status = document.getElementById('filterWebsiteStatus').value;
+            const outreach_status = document.getElementById('filterOutreach').value;
+            const deal_status = document.getElementById('filterDeal').value;
+            const response_status = document.getElementById('filterResponse').value;
+
+            renderSkeletonTable();
+
+            const params = {
+                skip: currentPage * pageSize,
+                limit: pageSize,
+                q,
+                city,
+                business_type,
+                website_status,
+                outreach_status,
+                deal_status,
+                response_status,
+            };
+
+            try {
+                const data = await api.getLeads(params);
+                totalLeads = data.total || 0;
+                currentLeads = data.leads || [];
+                renderTable();
+                updatePagination();
+            } catch (e) {
+                showToast(e.message, 'error');
+                renderEmptyTable('Failed to load leads. Please check your network or server.');
+            }
+        }
+
+        function renderSkeletonTable() {
+            const tbody = document.getElementById('leadsBody');
+            tbody.innerHTML = Array(6).fill(0).map(() => `
+                <tr>
+                    <td><div class="skeleton" style="width:16px;height:16px;"></div></td>
+                    <td><div class="skeleton skeleton-text" style="width:60px;"></div></td>
+                    <td><div class="skeleton skeleton-text" style="width:120px;"></div><div class="skeleton skeleton-text-sm" style="width:80px;"></div></td>
+                    <td><div class="skeleton skeleton-text" style="width:70px;"></div></td>
+                    <td><div class="skeleton skeleton-text" style="width:60px;"></div></td>
+                    <td><div class="skeleton skeleton-text" style="width:70px;"></div></td>
+                    <td><div class="skeleton skeleton-text" style="width:90px;"></div></td>
+                    <td><div class="skeleton skeleton-text" style="width:110px;"></div></td>
+                    <td><div class="skeleton skeleton-text" style="width:100px;"></div></td>
+                    <td><div class="skeleton" style="width:70px;height:20px;border-radius:10px;"></div></td>
+                    <td><div class="skeleton" style="width:80px;height:10px;"></div></td>
+                    <td><div class="skeleton" style="width:75px;height:20px;border-radius:10px;"></div></td>
+                    <td><div class="skeleton skeleton-text" style="width:60px;"></div></td>
+                    <td><div class="skeleton" style="width:60px;height:20px;border-radius:10px;"></div></td>
+                    <td><div class="skeleton skeleton-text" style="width:70px;"></div></td>
+                    <td style="text-align:right;"><div class="skeleton" style="width:60px;height:24px;"></div></td>
+                </tr>
+            `).join('');
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('leadsBody');
+            if (!currentLeads.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="16">
+                            <div class="empty-state">
+                                <div class="empty-icon-wrap">${getIcon('search')}</div>
+                                <div class="empty-title">No Leads Found</div>
+                                <div class="empty-desc">No leads match your current search and filter criteria. Try adjusting or clearing filters.</div>
+                                <button class="btn btn-secondary btn-sm" onclick="clearAllFilters()">Clear Filters</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = currentLeads.map(l => {
+                const isSelected = selectedLeadIds.has(l.lead_id);
+                const scoreHtml = leadScoreBadge(l.lead_score);
+                
+                // Business Column Layout
+                const businessHtml = `
+                    <div class="business-cell">
+                        <div class="business-name" onclick="openLeadDrawer('${l.lead_id}')" style="cursor:pointer;" title="View Details">
+                            ${esc(l.business_name)}
+                        </div>
+                        <div class="business-meta">
+                            <span>${esc(l.business_type || 'Business')} · ${esc(l.city || 'India')}</span>
+                        </div>
+                        <div class="business-source">${esc(l.lead_source || 'Google Places')}</div>
+                    </div>
+                `;
+
+                // Email Column with verification indicator
+                let emailHtml = `<span class="email-none">— Not found</span>`;
+                if (l.email) {
+                    const isVerified = l.email_verification_status === 'Verified';
+                    emailHtml = `
+                        <div class="email-cell" title="${esc(l.email)}">
+                            <span class="email-verified">${isVerified ? '✓' : '✉'}</span>
+                            <span style="max-width:140px; overflow:hidden; text-overflow:ellipsis; display:inline-block;">${esc(l.email)}</span>
+                        </div>
+                    `;
+                }
+
+                // Website Column
+                let websiteHtml = `<span class="badge badge-no-website">No Website</span>`;
+                if (l.current_website) {
+                    const cleanDomain = l.current_website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+                    websiteHtml = `
+                        <a href="${l.current_website}" target="_blank" class="website-pill" title="${l.current_website}">
+                            <span>${esc(cleanDomain)}</span>
+                            <span>${getIcon('external')}</span>
+                        </a>
+                    `;
+                }
+
+                const followupText = l.next_followup_date ? l.next_followup_date.substring(0, 10) : '<span style="color:var(--text-muted);">—</span>';
+
+                return `
+                    <tr class="${isSelected ? 'row-selected' : ''}" id="lead-row-${l.lead_id}">
+                        <td><input type="checkbox" onchange="toggleSelect('${l.lead_id}', this.checked)" ${isSelected ? 'checked' : ''}></td>
+                        <td data-col="id"><a href="javascript:void(0)" onclick="openLeadDrawer('${l.lead_id}')" style="font-weight:700; font-family:var(--font-mono); font-size:12px;">${l.lead_id}</a> ${demoBadge(l.is_demo)}</td>
+                        <td data-col="business">${businessHtml}</td>
+                        <td data-col="owner" style="color:var(--text-secondary);">${esc(l.owner_name || 'Unknown')}</td>
+                        <td data-col="type">${esc(l.business_type)}</td>
+                        <td data-col="city">${esc(l.city)}</td>
+                        <td data-col="phone" style="font-family:var(--font-mono); font-size:12px;">${esc(l.phone || '—')}</td>
+                        <td data-col="email">${emailHtml}</td>
+                        <td data-col="website">${websiteHtml}</td>
+                        <td data-col="web_status">${websiteStatusBadge(l.website_status)}</td>
+                        <td data-col="score">${scoreHtml}</td>
+                        <td data-col="outreach">${outreachStatusBadge(l.outreach_status)}</td>
+                        <td data-col="response"><span style="font-size:12px; color:var(--text-secondary);">${esc(l.response_status || 'No Response')}</span></td>
+                        <td data-col="deal">${dealStatusBadge(l.deal_status)}</td>
+                        <td data-col="followup"><span style="font-size:12px; font-weight:500;">${followupText}</span></td>
+                        <td data-col="actions" style="text-align: right;">
+                            <div style="display:inline-flex; gap:4px;">
+                                <button class="action-btn" onclick="openLeadDrawer('${l.lead_id}')" title="View details in drawer">👁</button>
+                                <button class="action-btn" onclick="openEditModal('${l.lead_id}')" title="Edit Lead">✏️</button>
+                                <button class="action-btn" onclick="deleteLead('${l.lead_id}')" title="Delete">🗑</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            applyColumnVisibility();
+            updateBulkUI();
+        }
+
+        function esc(str) {
+            return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        // ── Selection & Bulk Actions ──────────────────────────────────
+
+        function toggleSelect(id, checked) {
+            if (checked) selectedLeadIds.add(id);
+            else selectedLeadIds.delete(id);
+            
+            const row = document.getElementById(`lead-row-${id}`);
+            if (row) {
+                if (checked) row.classList.add('row-selected');
+                else row.classList.remove('row-selected');
+            }
+            updateBulkUI();
+        }
+
+        function toggleSelectAll(master) {
+            currentLeads.forEach(l => {
+                if (master.checked) selectedLeadIds.add(l.lead_id);
+                else selectedLeadIds.delete(l.lead_id);
+            });
+            renderTable();
+        }
+
+        function deselectAll() {
+            selectedLeadIds.clear();
+            renderTable();
+        }
+
+        function updateBulkUI() {
+            const count = selectedLeadIds.size;
+            const bulkBar = document.getElementById('bulkBar');
+            document.getElementById('selectedCount').textContent = `☑ ${count} Leads Selected`;
+            if (count > 0) bulkBar.classList.add('active');
+            else bulkBar.classList.remove('active');
+            document.getElementById('selectAll').checked = count === currentLeads.length && count > 0;
+        }
+
+        async function bulkDeleteSelected() {
+            if (!selectedLeadIds.size) return;
+            if (!confirm(`Delete ${selectedLeadIds.size} selected leads permanently?`)) return;
+            try {
+                await api.bulkDelete(Array.from(selectedLeadIds));
+                showToast(`Deleted ${selectedLeadIds.size} leads`, 'success');
+                selectedLeadIds.clear();
+                loadLeads();
+                loadStats();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function bulkChangeOutreach() {
+            const status = prompt('Enter new Outreach Status (Not Contacted / Contacted / Follow-up / Completed / Do Not Contact):', 'Contacted');
+            if (!status) return;
+            try {
+                await api.bulkAction(Array.from(selectedLeadIds), 'outreach_status', status);
+                showToast('Outreach status updated for selected leads', 'success');
+                loadLeads();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function bulkSetFollowup() {
+            const d = prompt('Enter Follow-up Date (YYYY-MM-DD):', new Date().toISOString().substring(0, 10));
+            if (!d) return;
+            try {
+                await api.bulkAction(Array.from(selectedLeadIds), 'followup_date', d);
+                showToast('Follow-up date scheduled for selected leads', 'success');
+                loadLeads();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function bulkAnalyzeWebsites() {
+            if (!selectedLeadIds.size) return;
+            showToast(`Analyzing websites for ${selectedLeadIds.size} leads in background…`, 'info');
+            for (const id of Array.from(selectedLeadIds)) {
+                try {
+                    await api.analyzeLeadWebsite(id);
+                } catch (e) {}
+            }
+            showToast('Bulk website analysis complete!', 'success');
+            loadLeads();
+        }
+
+        // ── Slide-over Right Drawer ──────────────────────────────────
+
+        async function openLeadDrawer(leadId) {
+            activeDrawerLeadId = leadId;
+            const drawer = document.getElementById('leadDrawer');
+            const backdrop = document.getElementById('drawerBackdrop');
+            drawer.classList.add('active');
+            backdrop.classList.add('active');
+
+            try {
+                const lead = await api.getLead(leadId);
+                document.getElementById('drawerBusinessName').textContent = lead.business_name;
+                document.getElementById('drawerBusinessMeta').textContent = `${lead.business_type} · ${lead.city} [${lead.lead_id}]`;
+
+                document.getElementById('dr_name').textContent = lead.business_name;
+                document.getElementById('dr_owner').textContent = lead.owner_name || 'Unknown';
+                document.getElementById('dr_type').textContent = lead.business_type;
+                document.getElementById('dr_city').textContent = lead.city;
+                document.getElementById('dr_address').textContent = lead.address || '—';
+                document.getElementById('dr_rating').textContent = lead.rating !== null ? `${lead.rating} ⭐` : '—';
+                document.getElementById('dr_reviews').textContent = lead.review_count !== null ? `${lead.review_count} reviews` : '—';
+                document.getElementById('dr_place_id').innerHTML = lead.google_place_id ? `<code>${lead.google_place_id}</code>` : '—';
+
+                document.getElementById('dr_phone').textContent = lead.phone || '—';
+                document.getElementById('dr_email').textContent = lead.email || '—';
+                document.getElementById('dr_instagram').textContent = lead.instagram || '—';
+                document.getElementById('dr_facebook').textContent = lead.facebook || '—';
+
+                document.getElementById('dr_website').innerHTML = lead.current_website 
+                    ? `<a href="${lead.current_website}" target="_blank">${lead.current_website} ↗</a>` 
+                    : '<span style="color:var(--text-muted);">No Website</span>';
+                document.getElementById('dr_web_status').innerHTML = websiteStatusBadge(lead.website_status);
+                document.getElementById('dr_ssl').textContent = lead.current_website && lead.current_website.startsWith('https') ? '✓ Valid (HTTPS)' : '—';
+
+                document.getElementById('dr_score').innerHTML = leadScoreBadge(lead.lead_score);
+                document.getElementById('dr_interested').textContent = lead.interested_agreed || 'Pending';
+                document.getElementById('dr_req').textContent = lead.website_requirement || '—';
+                document.getElementById('dr_budget').textContent = lead.estimated_budget || '—';
+
+                document.getElementById('dr_outreach').innerHTML = outreachStatusBadge(lead.outreach_status);
+                document.getElementById('dr_response').textContent = lead.response_status || 'No Response';
+                document.getElementById('dr_proposal').textContent = lead.proposal_status || 'Not Sent';
+                document.getElementById('dr_deal').innerHTML = dealStatusBadge(lead.deal_status);
+                document.getElementById('dr_next_followup').textContent = lead.next_followup_date ? lead.next_followup_date.substring(0, 10) : '—';
+                document.getElementById('dr_remarks').textContent = lead.remarks || '—';
+
+                loadDrawerTimeline(leadId);
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        function closeDrawer() {
+            document.getElementById('leadDrawer').classList.remove('active');
+            document.getElementById('drawerBackdrop').classList.remove('active');
+            activeDrawerLeadId = null;
+        }
+
+        async function loadDrawerTimeline(leadId) {
+            try {
+                const activities = await api.getTimeline(leadId);
+                const timelineBox = document.getElementById('drawerTimeline');
+                if (!activities.length) {
+                    timelineBox.innerHTML = '<div style="font-size:12px; color:var(--text-muted);">No activity logged yet.</div>';
+                    return;
+                }
+                timelineBox.innerHTML = activities.map(a => `
+                    <div class="timeline-item">
+                        <div class="timeline-date">${a.date ? a.date.substring(0, 16).replace('T', ' ') : ''}</div>
+                        <div class="timeline-title">${esc(a.activity_type)} ${a.result ? `<span style="font-size:11px; font-weight:normal; color:var(--primary);">(${esc(a.result)})</span>` : ''}</div>
+                        <div class="timeline-desc">${esc(a.description || '')}</div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function triggerDrawerAnalyze() {
+            if (!activeDrawerLeadId) return;
+            const btn = document.getElementById('drAnalyzeBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-dark"></span> Inspecting…';
+
+            try {
+                const res = await api.analyzeLeadWebsite(activeDrawerLeadId);
+                showToast('Website analysis complete!', 'success');
+                openLeadDrawer(activeDrawerLeadId);
+                loadLeads();
+            } catch (e) {
+                showToast(e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Analyze Website';
+            }
+        }
+
+        function openDrawerActivityModal() {
+            if (!activeDrawerLeadId) return;
+            document.getElementById('activityForm').reset();
+            document.getElementById('activityModal').classList.add('active');
+        }
+
+        function openEditModalFromDrawer() {
+            if (activeDrawerLeadId) {
+                openEditModal(activeDrawerLeadId);
+            }
+        }
+
+        // ── Pagination Controls ──────────────────────────────────────
+
+        function updatePagination() {
+            const start = totalLeads ? currentPage * pageSize + 1 : 0;
+            const end = Math.min((currentPage + 1) * pageSize, totalLeads);
+            document.getElementById('pageInfo').textContent = totalLeads ? `Showing ${start}–${end} of ${totalLeads} leads` : '0 leads';
+            document.getElementById('prevBtn').disabled = currentPage === 0;
+            document.getElementById('nextBtn').disabled = end >= totalLeads;
+
+            // Render page buttons
+            const totalPages = Math.ceil(totalLeads / pageSize) || 1;
+            const numbersBox = document.getElementById('pageNumbers');
+            let btnsHtml = '';
+            
+            const startPage = Math.max(0, currentPage - 2);
+            const endPage = Math.min(totalPages - 1, currentPage + 2);
+
+            for (let i = startPage; i <= endPage; i++) {
+                btnsHtml += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i + 1}</button>`;
+            }
+            numbersBox.innerHTML = btnsHtml;
+        }
+
+        function prevPage() { if (currentPage > 0) { currentPage--; loadLeads(); } }
+        function nextPage() { currentPage++; loadLeads(); }
+        function goToPage(p) { currentPage = p; loadLeads(); }
+        function changePageSize(sz) { pageSize = parseInt(sz, 10); currentPage = 0; loadLeads(); }
+
+        // ── Column Customizer ────────────────────────────────────────
+
+        function renderColumnCheckboxList() {
+            const list = document.getElementById('columnCheckboxList');
+            list.innerHTML = ALL_COLUMNS.map(col => `
+                <label class="column-checkbox-item">
+                    <input type="checkbox" value="${col.id}" ${visibleColumns.has(col.id) ? 'checked' : ''} onchange="toggleColumn('${col.id}', this.checked)">
+                    <span>${col.name}</span>
+                </label>
+            `).join('');
+        }
+
+        function toggleColumnCustomizer(e) {
+            e.stopPropagation();
+            document.getElementById('columnPopover').classList.toggle('active');
+        }
+
+        document.addEventListener('click', (e) => {
+            const pop = document.getElementById('columnPopover');
+            if (pop && !pop.contains(e.target)) {
+                pop.classList.remove('active');
+            }
+        });
+
+        function toggleColumn(colId, isVisible) {
+            if (isVisible) visibleColumns.add(colId);
+            else visibleColumns.delete(colId);
+            localStorage.setItem('tvn_visible_columns', JSON.stringify(Array.from(visibleColumns)));
+            applyColumnVisibility();
+        }
+
+        function applyColumnVisibility() {
+            ALL_COLUMNS.forEach(col => {
+                const show = visibleColumns.has(col.id);
+                document.querySelectorAll(`[data-col="${col.id}"]`).forEach(el => {
+                    el.style.display = show ? '' : 'none';
+                });
+            });
+        }
+
+        // ── CRUD Operations ──────────────────────────────────────────
+
+        function openCreateModal() {
+            editingLeadId = null;
+            document.getElementById('modalTitle').textContent = 'New Lead';
+            document.getElementById('leadForm').reset();
+            document.getElementById('leadModal').classList.add('active');
+        }
+
+        async function openEditModal(leadId) {
+            editingLeadId = leadId;
+            document.getElementById('modalTitle').textContent = `Edit Lead: ${leadId}`;
+            try {
+                const lead = await api.getLead(leadId);
+                const form = document.getElementById('leadForm');
+                form.business_name.value = lead.business_name || '';
+                form.owner_name.value = lead.owner_name || '';
+                form.business_type.value = lead.business_type || 'Cafe';
+                form.city.value = lead.city || '';
+                form.phone.value = lead.phone || '';
+                form.email.value = lead.email || '';
+                form.current_website.value = lead.current_website || '';
+                form.website_status.value = lead.website_status || 'Unknown';
+                form.instagram.value = lead.instagram || '';
+                form.facebook.value = lead.facebook || '';
+                form.outreach_status.value = lead.outreach_status || 'Not Contacted';
+                form.response_status.value = lead.response_status || 'No Response';
+                form.deal_status.value = lead.deal_status || 'Open';
+                form.estimated_budget.value = lead.estimated_budget || '';
+                form.remarks.value = lead.remarks || '';
+                document.getElementById('leadModal').classList.add('active');
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('leadModal').classList.remove('active');
+        }
+
+        async function saveLead() {
+            const form = document.getElementById('leadForm');
+            if (!form.reportValidity()) return;
+
+            const payload = {
+                business_name: form.business_name.value.trim(),
+                owner_name: form.owner_name.value.trim() || 'Unknown',
+                business_type: form.business_type.value.trim(),
+                city: form.city.value.trim(),
+                phone: form.phone.value.trim(),
+                email: form.email.value.trim(),
+                current_website: form.current_website.value.trim(),
+                website_status: form.website_status.value,
+                instagram: form.instagram.value.trim(),
+                facebook: form.facebook.value.trim(),
+                outreach_status: form.outreach_status.value,
+                response_status: form.response_status.value,
+                deal_status: form.deal_status.value,
+                estimated_budget: form.estimated_budget.value.trim(),
+                remarks: form.remarks.value.trim(),
+            };
+
+            try {
+                if (editingLeadId) {
+                    await api.updateLead(editingLeadId, payload);
+                    showToast('Lead updated successfully', 'success');
+                    if (activeDrawerLeadId === editingLeadId) {
+                        openLeadDrawer(editingLeadId);
+                    }
+                } else {
+                    await api.createLead(payload);
+                    showToast('Lead created successfully', 'success');
+                }
+                closeModal();
+                loadLeads();
+                loadStats();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function deleteLead(leadId) {
+            if (!confirm(`Are you sure you want to delete lead ${leadId}?`)) return;
+            try {
+                await api.deleteLead(leadId);
+                showToast(`Lead ${leadId} deleted`, 'success');
+                if (activeDrawerLeadId === leadId) closeDrawer();
+                loadLeads();
+                loadStats();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        // ── Activity Submission ──────────────────────────────────────
+
+        function closeActivityModal() {
+            document.getElementById('activityModal').classList.remove('active');
+        }
+
+        async function submitActivity() {
+            if (!activeDrawerLeadId) return;
+            const payload = {
+                activity_type: document.getElementById('act_type').value,
+                description: document.getElementById('act_desc').value.trim(),
+                result: document.getElementById('act_result').value.trim(),
+                next_followup_date: document.getElementById('act_followup').value || null,
+            };
+            try {
+                await api.addTimelineEntry(activeDrawerLeadId, payload);
+                showToast('Activity logged successfully', 'success');
+                closeActivityModal();
+                openLeadDrawer(activeDrawerLeadId);
+                loadLeads();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        // ── CSV Import / Export ──────────────────────────────────────
+
+        function openImportModal() {
+            document.getElementById('importSummary').innerHTML = '';
+            document.getElementById('csvFileInput').value = '';
+            document.getElementById('importModal').classList.add('active');
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').classList.remove('active');
+        }
+
+        async function uploadCsv() {
+            const fileInput = document.getElementById('csvFileInput');
+            if (!fileInput.files.length) { showToast('Please select a CSV file', 'error'); return; }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            const btn = document.getElementById('uploadCsvBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-dark"></span> Importing…';
+
+            try {
+                const res = await fetch('/api/leads/import-csv', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Import failed');
+
+                document.getElementById('importSummary').innerHTML = `
+                    <div style="background:var(--success-bg); padding:12px; border-radius:var(--radius-md); border:1px solid var(--success-border); color:var(--success-text); font-size:12.5px;">
+                        <strong>✓ CSV Processed:</strong> ${data.imported} leads imported, ${data.duplicates} duplicates skipped.
+                    </div>
+                `;
+                showToast(`Imported ${data.imported} leads`, 'success');
+                loadLeads();
+                loadStats();
+            } catch (e) {
+                showToast(e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Upload & Import';
+            }
+        }
+
+        function exportCsv(mode) {
+            const q = document.getElementById('searchInput').value.trim();
+            const city = document.getElementById('filterCity').value;
+            const ids = Array.from(selectedLeadIds).join(',');
+            const url = `/api/leads/export?mode=${mode}&q=${encodeURIComponent(q)}&city=${encodeURIComponent(city)}&ids=${encodeURIComponent(ids)}`;
+            window.open(url, '_blank');
+        }
+
+        init();
+    </script>
+</body>
+</html>

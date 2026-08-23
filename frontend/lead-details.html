@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Lead Details & Website Analysis – TechvionNova CRM">
+    <title>Lead Details | TechvionNova CRM</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .detail-layout {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+        .detail-field {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .detail-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        .detail-val {
+            font-size: 13.5px;
+            font-weight: 600;
+            color: var(--text-primary);
+            word-break: break-word;
+        }
+        @media (max-width: 900px) {
+            .detail-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout" id="app">
+        <!-- Sidebar injected by JS -->
+        <div class="main-wrapper">
+            <!-- Topbar injected by JS -->
+            <div id="topbarContainer"></div>
+
+            <main class="content-body">
+                <div class="detail-layout">
+                    <!-- Left Column: Business & Lead Records -->
+                    <div>
+                        <!-- Business Information Card -->
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">🏢 Business Information</span>
+                                <span id="leadIdBadge" style="font-family:var(--font-mono); font-size:12px; font-weight:700; color:var(--primary);"></span>
+                            </div>
+                            <div class="drawer-grid">
+                                <div class="detail-field"><span class="detail-label">Business Name</span><span class="detail-val" id="d_name">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Owner Name</span><span class="detail-val" id="d_owner">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Business Type</span><span class="detail-val" id="d_type">—</span></div>
+                                <div class="detail-field"><span class="detail-label">City</span><span class="detail-val" id="d_city">—</span></div>
+                                <div class="drawer-item-full detail-field"><span class="detail-label">Full Address</span><span class="detail-val" id="d_address">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Lead Source</span><span class="detail-val" id="d_source">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Google Rating</span><span class="detail-val" id="d_rating">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Google Reviews</span><span class="detail-val" id="d_reviews">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Business Status</span><span class="detail-val" id="d_status">—</span></div>
+                                <div class="drawer-item-full detail-field"><span class="detail-label">Google Place ID</span><span class="detail-val" id="d_place_id">—</span></div>
+                                <div class="drawer-item-full detail-field"><span class="detail-label">Google Maps Link</span><span class="detail-val" id="d_maps_url">—</span></div>
+                            </div>
+                        </div>
+
+                        <!-- Contact & Online Presence Card -->
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">📞 Contact & Online Presence</span>
+                                <button class="btn btn-secondary btn-sm" id="analyzeBtn" onclick="triggerWebsiteAnalysis()">🌐 Analyze Website</button>
+                            </div>
+                            <div class="drawer-grid">
+                                <div class="detail-field"><span class="detail-label">Phone</span><span class="detail-val" id="d_phone">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Email</span><span class="detail-val" id="d_email">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Instagram</span><span class="detail-val" id="d_instagram">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Facebook</span><span class="detail-val" id="d_facebook">—</span></div>
+                                <div class="drawer-item-full detail-field"><span class="detail-label">Website URL</span><span class="detail-val" id="d_website">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Website Status</span><span class="detail-val" id="d_web_status">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Email Verification</span><span class="detail-val" id="d_email_verif">—</span></div>
+                            </div>
+                            <div id="analysisResultCard" style="display:none; margin-top:14px; background:var(--surface-alt); border:1px solid var(--border); border-radius:var(--radius-md); padding:14px; font-size:12.5px;"></div>
+                        </div>
+
+                        <!-- Pipeline & Deal Card -->
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">🚀 Qualification, Pipeline & Follow-up</span>
+                            </div>
+                            <div class="drawer-grid">
+                                <div class="detail-field"><span class="detail-label">Outreach Status</span><span class="detail-val" id="d_outreach">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Response Status</span><span class="detail-val" id="d_response">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Interested / Agreed</span><span class="detail-val" id="d_interested">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Proposal Status</span><span class="detail-val" id="d_proposal">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Deal Status</span><span class="detail-val" id="d_deal">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Project Status</span><span class="detail-val" id="d_project">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Estimated Budget</span><span class="detail-val" id="d_budget">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Next Follow-up</span><span class="detail-val" id="d_next_followup">—</span></div>
+                                <div class="drawer-item-full detail-field"><span class="detail-label">Remarks</span><span class="detail-val" id="d_remarks" style="font-weight:400;">—</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Score & Activity Timeline -->
+                    <div>
+                        <!-- Lead Score Card -->
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">🎯 Lead Score</span>
+                                <div id="leadScoreBadgeWrap"></div>
+                            </div>
+                            <div id="scoreBreakdown" style="font-size: 12.5px; color: var(--text-secondary); line-height: 1.6;">
+                            </div>
+                        </div>
+
+                        <!-- Activity Timeline Card -->
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">📅 Activity Timeline</span>
+                                <button class="btn btn-secondary btn-sm" onclick="openAddActivityModal()">+ Log</button>
+                            </div>
+                            <div class="timeline" id="timelineList">
+                                <div style="font-size: 12px; color: var(--text-muted);">Loading activity logs…</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Edit Lead Modal -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Edit Lead</h3>
+                <button class="modal-close" onclick="closeEditModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <form id="leadForm" class="form-grid">
+                    <div class="form-group"><label>Business Name *</label><input id="f_business_name" required></div>
+                    <div class="form-group"><label>Owner Name</label><input id="f_owner_name"></div>
+                    <div class="form-group"><label>Business Type</label><input id="f_business_type" required></div>
+                    <div class="form-group"><label>City</label><input id="f_city" required></div>
+                    <div class="form-group"><label>Phone</label><input id="f_phone"></div>
+                    <div class="form-group"><label>Email</label><input id="f_email" type="email"></div>
+                    <div class="form-group"><label>Current Website</label><input id="f_website"></div>
+                    <div class="form-group">
+                        <label>Website Status</label>
+                        <select id="f_website_status">
+                            <option value="No Website">No Website</option>
+                            <option value="Good">Good</option>
+                            <option value="Outdated">Outdated</option>
+                            <option value="Broken">Broken</option>
+                            <option value="Under Construction">Under Construction</option>
+                            <option value="E-commerce Website">E-commerce</option>
+                            <option value="Booking Website">Booking</option>
+                            <option value="Unknown">Unknown</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Outreach Status</label>
+                        <select id="f_outreach_status">
+                            <option value="Not Contacted">Not Contacted</option>
+                            <option value="Contacted">Contacted</option>
+                            <option value="Follow-up">Follow-up</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Do Not Contact">Do Not Contact</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Deal Status</label>
+                        <select id="f_deal_status">
+                            <option value="Open">Open</option>
+                            <option value="Negotiation">Negotiation</option>
+                            <option value="Won">Won</option>
+                            <option value="Lost">Lost</option>
+                        </select>
+                    </div>
+                    <div class="form-group span-full"><label>Remarks</label><textarea id="f_remarks" rows="2"></textarea></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveLeadEdit()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Log Activity Modal -->
+    <div class="modal-overlay" id="activityModal">
+        <div class="modal" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3>📝 Log Activity / Follow-up</h3>
+                <button class="modal-close" onclick="closeActivityModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <form id="activityForm" class="form-grid" style="grid-template-columns: 1fr;">
+                    <div class="form-group">
+                        <label>Activity Type *</label>
+                        <select id="act_type" class="filter-select">
+                            <option value="First Contact Call">First Contact Call</option>
+                            <option value="WhatsApp Message">WhatsApp Message</option>
+                            <option value="Follow-up Call">Follow-up Call</option>
+                            <option value="Client Replied">Client Replied</option>
+                            <option value="Meeting Scheduled">Meeting Scheduled</option>
+                            <option value="Proposal Sent">Proposal Sent</option>
+                            <option value="Proposal Accepted">Proposal Accepted</option>
+                            <option value="Deal Won">Deal Won</option>
+                            <option value="Deal Lost">Deal Lost</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Description / Notes</label>
+                        <textarea id="act_desc" rows="3" placeholder="Notes on discussion..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Result / Outcome</label>
+                        <input id="act_result" placeholder="Interested / Schedule demo">
+                    </div>
+                    <div class="form-group">
+                        <label>Next Follow-up Date (Optional)</label>
+                        <input id="act_followup" type="date">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeActivityModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitActivity()">Save Log</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const leadId = urlParams.get('id');
+        let currentLead = null;
+
+        const topActionsHtml = `
+            <a href="leads.html" class="btn btn-secondary btn-sm">← Back to Leads</a>
+            <button class="btn btn-secondary btn-sm" onclick="openEditModal()">✏️ Edit Lead</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteCurrentLead()">🗑 Delete</button>
+        `;
+        document.getElementById('topbarContainer').innerHTML = renderTopNav('Lead Details', leadId ? `Lead ID: ${leadId}` : '', topActionsHtml);
+        document.getElementById('app').insertAdjacentHTML('afterbegin', renderSidebar('leads'));
+
+        async function init() {
+            if (!leadId) {
+                alert('No lead ID provided in URL');
+                window.location.href = 'leads.html';
+                return;
+            }
+            try {
+                currentLead = await api.getLead(leadId);
+                renderLeadDetails();
+                loadTimeline();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        function renderLeadDetails() {
+            const l = currentLead;
+            document.getElementById('leadIdBadge').textContent = l.lead_id;
+
+            document.getElementById('d_name').textContent = l.business_name;
+            document.getElementById('d_owner').textContent = l.owner_name || 'Unknown';
+            document.getElementById('d_type').textContent = l.business_type;
+            document.getElementById('d_city').textContent = l.city;
+            document.getElementById('d_source').textContent = l.lead_source;
+            document.getElementById('d_address').textContent = l.address || '—';
+            document.getElementById('d_rating').textContent = l.rating !== null ? `${l.rating} ⭐` : '—';
+            document.getElementById('d_reviews').textContent = l.review_count !== null ? `${l.review_count} reviews` : '—';
+            document.getElementById('d_place_id').innerHTML = l.google_place_id ? `<code>${l.google_place_id}</code>` : '—';
+            document.getElementById('d_maps_url').innerHTML = l.google_maps_url ? `<a href="${l.google_maps_url}" target="_blank">View on Google Maps ↗</a>` : '—';
+            document.getElementById('d_status').textContent = l.business_status || 'OPERATIONAL';
+
+            document.getElementById('d_phone').textContent = l.phone || '—';
+            document.getElementById('d_email').textContent = l.email || '—';
+            document.getElementById('d_email_verif').textContent = l.email_verification_status || 'Not Checked';
+
+            document.getElementById('d_website').innerHTML = l.current_website ? `<a href="${l.current_website}" target="_blank">${l.current_website} ↗</a>` : '<span style="color:var(--text-muted);">No Website</span>';
+            document.getElementById('d_web_status').innerHTML = websiteStatusBadge(l.website_status);
+            document.getElementById('d_instagram').textContent = l.instagram || '—';
+            document.getElementById('d_facebook').textContent = l.facebook || '—';
+
+            document.getElementById('d_outreach').innerHTML = outreachStatusBadge(l.outreach_status);
+            document.getElementById('d_response').textContent = l.response_status || 'No Response';
+            document.getElementById('d_interested').textContent = l.interested_agreed || 'Pending';
+            document.getElementById('d_proposal').textContent = l.proposal_status || 'Not Sent';
+            document.getElementById('d_deal').innerHTML = dealStatusBadge(l.deal_status);
+            document.getElementById('d_project').textContent = l.project_status || 'Not Started';
+            document.getElementById('d_budget').textContent = l.estimated_budget || '—';
+            document.getElementById('d_next_followup').textContent = l.next_followup_date ? l.next_followup_date.substring(0, 10) : '—';
+            document.getElementById('d_remarks').textContent = l.remarks || '—';
+
+            // Lead Score
+            document.getElementById('leadScoreBadgeWrap').innerHTML = leadScoreBadge(l.lead_score);
+            let scoreText = '';
+            if (l.website_status === 'No Website') scoreText += '• +30 No Website<br>';
+            else if (l.website_status === 'Broken') scoreText += '• +25 Broken Website<br>';
+            else if (l.website_status === 'Outdated') scoreText += '• +20 Outdated Website<br>';
+            else scoreText += '• +10 Existing Active Website<br>';
+            scoreText += '• +10 Needs Online Table Booking<br>';
+            scoreText += '• +10 Needs Online Food Ordering<br>';
+            if (l.email) scoreText += '• +5 Public Business Email<br>';
+            document.getElementById('scoreBreakdown').innerHTML = scoreText;
+        }
+
+        async function loadTimeline() {
+            try {
+                const activities = await api.getTimeline(leadId);
+                const list = document.getElementById('timelineList');
+                if (!activities.length) {
+                    list.innerHTML = '<div style="font-size:12px; color:var(--text-muted); padding:10px 0;">No activities logged yet.</div>';
+                    return;
+                }
+                list.innerHTML = activities.map(a => `
+                    <div class="timeline-item">
+                        <div class="timeline-date">${a.date ? a.date.substring(0, 16).replace('T', ' ') : ''}</div>
+                        <div class="timeline-title">${a.activity_type} ${a.result ? `<span style="font-size:11px; font-weight:normal; color:var(--primary);">(${a.result})</span>` : ''}</div>
+                        <div class="timeline-desc">${a.description || ''}</div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function triggerWebsiteAnalysis() {
+            if (!currentLead.current_website) {
+                showToast('Lead has no website configured', 'warning');
+                return;
+            }
+            const btn = document.getElementById('analyzeBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-dark"></span> Analyzing…';
+
+            try {
+                const res = await api.analyzeLeadWebsite(leadId);
+                showToast('Website analysis complete!', 'success');
+                currentLead = await api.getLead(leadId);
+                renderLeadDetails();
+                loadTimeline();
+
+                const aCard = document.getElementById('analysisResultCard');
+                aCard.style.display = 'block';
+                aCard.innerHTML = `
+                    <strong>Analysis Summary:</strong><br>
+                    Status: ${res.website_status} · SSL: ${res.has_ssl ? 'Valid (HTTPS)' : 'Missing'} · Speed: ${res.load_time_seconds}s<br>
+                    Emails Discovered: ${res.emails && res.emails.length ? res.emails.join(', ') : 'None'}
+                `;
+            } catch (e) {
+                showToast(e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🌐 Analyze Website';
+            }
+        }
+
+        function openEditModal() {
+            const form = document.getElementById('leadForm');
+            form.f_business_name.value = currentLead.business_name || '';
+            form.f_owner_name.value = currentLead.owner_name || '';
+            form.f_business_type.value = currentLead.business_type || '';
+            form.f_city.value = currentLead.city || '';
+            form.f_phone.value = currentLead.phone || '';
+            form.f_email.value = currentLead.email || '';
+            form.f_website.value = currentLead.current_website || '';
+            form.f_website_status.value = currentLead.website_status || 'Unknown';
+            form.f_outreach_status.value = currentLead.outreach_status || 'Not Contacted';
+            form.f_deal_status.value = currentLead.deal_status || 'Open';
+            form.f_remarks.value = currentLead.remarks || '';
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+        }
+
+        async function saveLeadEdit() {
+            const form = document.getElementById('leadForm');
+            const payload = {
+                business_name: form.f_business_name.value.trim(),
+                owner_name: form.f_owner_name.value.trim(),
+                business_type: form.f_business_type.value.trim(),
+                city: form.f_city.value.trim(),
+                phone: form.f_phone.value.trim(),
+                email: form.f_email.value.trim(),
+                current_website: form.f_website.value.trim(),
+                website_status: form.f_website_status.value,
+                outreach_status: form.f_outreach_status.value,
+                deal_status: form.f_deal_status.value,
+                remarks: form.f_remarks.value.trim(),
+            };
+            try {
+                await api.updateLead(leadId, payload);
+                showToast('Lead updated successfully', 'success');
+                closeEditModal();
+                init();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        function openAddActivityModal() {
+            document.getElementById('activityForm').reset();
+            document.getElementById('activityModal').classList.add('active');
+        }
+
+        function closeActivityModal() {
+            document.getElementById('activityModal').classList.remove('active');
+        }
+
+        async function submitActivity() {
+            const payload = {
+                activity_type: document.getElementById('act_type').value,
+                description: document.getElementById('act_desc').value.trim(),
+                result: document.getElementById('act_result').value.trim(),
+                next_followup_date: document.getElementById('act_followup').value || null,
+            };
+            try {
+                await api.addTimelineEntry(leadId, payload);
+                showToast('Activity logged successfully', 'success');
+                closeActivityModal();
+                init();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function deleteCurrentLead() {
+            if (!confirm(`Delete lead ${leadId} permanently?`)) return;
+            try {
+                await api.deleteLead(leadId);
+                showToast('Lead deleted', 'success');
+                window.location.href = 'leads.html';
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

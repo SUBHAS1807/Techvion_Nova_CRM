@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Website Analyzer & Contact Detection – TechvionNova CRM">
+    <title>Website Analyzer | TechvionNova CRM</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .analyzer-wrap { max-width: 900px; }
+        .stat-box {
+            background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-md);
+            padding: 14px; display: flex; flex-direction: column; gap: 4px;
+        }
+        .stat-box .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
+        .stat-box .value { font-size: 14.5px; font-weight: 700; color: var(--text-primary); }
+    </style>
+</head>
+<body>
+    <div class="app-layout" id="app">
+        <!-- Sidebar injected by JS -->
+        <div class="main-wrapper">
+            <!-- Topbar injected by JS -->
+            <div id="topbarContainer"></div>
+
+            <main class="content-body">
+                <div class="analyzer-wrap">
+                    <!-- URL Inspection Input Card -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg> Inspect Business Website</span>
+                            <span style="font-size:12px; color:var(--text-muted);">Real-time HTML & metadata parsing</span>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
+                            <input type="text" id="urlInput" placeholder="Enter website URL (e.g. cafebreeze.in or https://...)" style="flex:1; min-width:240px; padding:10px 14px; border:1px solid var(--border); border-radius:var(--radius-md); font-size:13.5px; outline:none;" onkeydown="if(event.key==='Enter')runAnalysis()">
+                            <button class="btn btn-primary" id="analyzeBtn" onclick="runAnalysis()">
+                                🌐 Inspect Website
+                            </button>
+                        </div>
+                        <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">
+                            Analyzes SSL certificates, responsiveness, page load latency, booking/ordering functionality, and discovers public contact details (emails, phone numbers, social media links).
+                        </p>
+                    </div>
+
+                    <!-- Results Container -->
+                    <div id="results"></div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        const topActionsHtml = `
+            <a href="leads.html" class="btn btn-secondary btn-sm">${getIcon('leads')} Leads Table</a>
+        `;
+        document.getElementById('topbarContainer').innerHTML = renderTopNav('Website Analyzer', 'Analyze publicly available business website information and digital presence.', topActionsHtml);
+        document.getElementById('app').insertAdjacentHTML('afterbegin', renderSidebar('analyzer'));
+
+        async function runAnalysis() {
+            const url = document.getElementById('urlInput').value.trim();
+            const results = document.getElementById('results');
+            const btn = document.getElementById('analyzeBtn');
+
+            if (!url) { showToast('Please enter a website URL', 'error'); return; }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-dark"></span> Inspecting…';
+            results.innerHTML = `
+                <div class="card">
+                    <div style="display:flex; align-items:center; gap:12px; padding:20px 0;">
+                        <span class="spinner spinner-dark" style="width:20px;height:20px;"></span>
+                        <div>
+                            <strong>Fetching website headers & analyzing metadata…</strong>
+                            <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">Extracting public contacts and inspecting SSL certificates.</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            try {
+                const r = await api.analyzeWebsite(url);
+                if (r.error && r.status_code === 0) {
+                    results.innerHTML = `
+                        <div class="card" style="border-left:4px solid var(--danger);">
+                            <h3 style="color:var(--danger); font-size:15px; margin-bottom:6px;">❌ Website Unreachable</h3>
+                            <p style="color:var(--text-secondary); font-size:13px;">${esc(r.error)}</p>
+                            <div style="margin-top:12px;"><strong>Website Status:</strong> ${websiteStatusBadge('Broken')}</div>
+                        </div>`;
+                    return;
+                }
+
+                const scoreBadge = leadScoreBadge(r.lead_score || 0);
+                const emailsList = r.emails && r.emails.length 
+                    ? r.emails.map(e => `<span class="badge badge-good" style="font-size:12px; font-family:var(--font-mono);">${esc(e)}</span>`).join(' ') 
+                    : '<span style="color:var(--text-muted); font-size:12.5px;">No public email found</span>';
+                
+                const phonesList = r.phones && r.phones.length 
+                    ? r.phones.map(p => `<span class="badge badge-unknown" style="font-size:12px; font-family:var(--font-mono);">${esc(p)}</span>`).join(' ') 
+                    : '<span style="color:var(--text-muted); font-size:12.5px;">No phone found</span>';
+                
+                const socialsList = [];
+                if (r.socials) {
+                    if (r.socials.instagram) socialsList.push(`<a href="${r.socials.instagram}" target="_blank" class="badge badge-unknown">Instagram ↗</a>`);
+                    if (r.socials.facebook) socialsList.push(`<a href="${r.socials.facebook}" target="_blank" class="badge badge-unknown">Facebook ↗</a>`);
+                    if (r.socials.linkedin) socialsList.push(`<a href="${r.socials.linkedin}" target="_blank" class="badge badge-unknown">LinkedIn ↗</a>`);
+                }
+                const socialsHtml = socialsList.length ? socialsList.join(' ') : '<span style="color:var(--text-muted); font-size:12.5px;">None detected</span>';
+
+                results.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">
+                            <div>
+                                <h3 style="font-size:16px; font-weight:700; color:var(--text-primary);">${esc(r.title || r.url)}</h3>
+                                <a href="${r.url}" target="_blank" style="font-size:12px; color:var(--text-secondary);">${r.url} ↗</a>
+                            </div>
+                            <div>${websiteStatusBadge(r.website_status)}</div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:18px;">
+                            <div class="stat-box">
+                                <span class="label">SSL Certificate</span>
+                                <span class="value" style="color:${r.has_ssl ? 'var(--success)' : 'var(--danger)'}">
+                                    ${r.has_ssl ? '✓ Valid (HTTPS)' : '✗ Missing SSL'}
+                                </span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="label">Page Load Time</span>
+                                <span class="value">${r.load_time_seconds || 0}s</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="label">Mobile Responsiveness</span>
+                                <span class="value">${r.has_viewport ? '✓ Responsive Viewport' : '✗ Non-responsive'}</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="label">Online Booking</span>
+                                <span class="value">${r.features && r.features.has_booking ? '✓ Detected' : '✗ Not Detected'}</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="label">Online Ordering</span>
+                                <span class="value">${r.features && r.features.has_ordering ? '✓ Detected' : '✗ Not Detected'}</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="label">Total Images</span>
+                                <span class="value">${r.images_total || 0} (${r.images_missing_alt || 0} missing alt)</span>
+                            </div>
+                        </div>
+
+                        <div style="border-top:1px solid var(--border-light); padding-top:16px; margin-top:14px;">
+                            <h4 style="font-size:13px; font-weight:700; margin-bottom:12px; color:var(--text-primary); text-transform:uppercase; letter-spacing:0.04em;">📬 Discovered Public Contact Information</h4>
+                            <div style="display:flex; flex-direction:column; gap:10px; font-size:13px;">
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <strong style="width:70px; color:var(--text-secondary);">Emails:</strong>
+                                    <div>${emailsList}</div>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <strong style="width:70px; color:var(--text-secondary);">Phones:</strong>
+                                    <div>${phonesList}</div>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <strong style="width:70px; color:var(--text-secondary);">Socials:</strong>
+                                    <div>${socialsHtml}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="background:var(--primary-light); border:1px solid var(--primary-border); border-radius:var(--radius-md); padding:16px; margin-top:18px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <strong style="color:var(--primary-dark); font-size:13.5px;">Calculated Lead Score:</strong>
+                                ${scoreBadge}
+                            </div>
+                            <div style="font-size:12px; color:var(--text-secondary); margin-top:6px; line-height:1.5;">
+                                ${r.score_breakdown ? r.score_breakdown.join(' · ') : 'Rules evaluation complete'}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (e) {
+                results.innerHTML = `<div class="card" style="border-left:4px solid var(--danger);"><p style="color:var(--danger);">${esc(e.message)}</p></div>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🌐 Inspect Website';
+            }
+        }
+
+        function esc(str) {
+            return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+    </script>
+</body>
+</html>

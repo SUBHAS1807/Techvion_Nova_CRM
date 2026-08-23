@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Follow-up Tracking & Reminders – TechvionNova CRM">
+    <title>Follow-ups | TechvionNova CRM</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .tab-bar {
+            display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid var(--border);
+            padding-bottom: 10px; flex-wrap: wrap;
+        }
+        .tab-btn {
+            background: #ffffff; border: 1px solid var(--border); padding: 7px 14px; font-weight: 600;
+            color: var(--text-secondary); cursor: pointer; border-radius: var(--radius-md);
+            font-size: 13px; transition: all var(--transition-fast); display: inline-flex; align-items: center; gap: 6px;
+        }
+        .tab-btn:hover {
+            background: var(--surface-alt); color: var(--text-primary);
+        }
+        .tab-btn.active {
+            background: var(--primary); color: #ffffff; border-color: var(--primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout" id="app">
+        <!-- Sidebar injected by JS -->
+        <div class="main-wrapper">
+            <!-- Topbar injected by JS -->
+            <div id="topbarContainer"></div>
+
+            <main class="content-body">
+                <div class="tab-bar">
+                    <button class="tab-btn active" onclick="switchTab('today', this)">⏰ Today's Follow-ups</button>
+                    <button class="tab-btn" onclick="switchTab('overdue', this)">⚠️ Overdue</button>
+                    <button class="tab-btn" onclick="switchTab('tomorrow', this)">📆 Tomorrow</button>
+                    <button class="tab-btn" onclick="switchTab('week', this)">🗓️ This Week</button>
+                    <button class="tab-btn" onclick="switchTab('all', this)">All Follow-ups</button>
+                </div>
+
+                <div class="table-container">
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Due Date</th>
+                                    <th>Lead ID</th>
+                                    <th>Business</th>
+                                    <th>City</th>
+                                    <th>Phone</th>
+                                    <th>Outreach</th>
+                                    <th>Response</th>
+                                    <th>Remarks / Notes</th>
+                                    <th style="text-align: right;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="followupBody">
+                                <tr><td colspan="9" style="text-align:center; padding:24px;">Loading follow-ups…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Quick Reschedule Modal -->
+    <div class="modal-overlay" id="rescheduleModal">
+        <div class="modal" style="max-width: 420px;">
+            <div class="modal-header">
+                <h3>📅 Reschedule Follow-up</h3>
+                <button class="modal-close" onclick="closeRescheduleModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Select New Date</label>
+                    <input type="date" id="rescheduleDate">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeRescheduleModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmReschedule()">Save Date</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        const topActionsHtml = `
+            <a href="leads.html" class="btn btn-secondary btn-sm">${getIcon('leads')} Leads Table</a>
+        `;
+        document.getElementById('topbarContainer').innerHTML = renderTopNav('Follow-ups & Reminders', 'Scheduled sales follow-ups and outreach reminders.', topActionsHtml);
+        document.getElementById('app').insertAdjacentHTML('afterbegin', renderSidebar('followups'));
+
+        let currentFilter = 'today';
+        let reschedulingLeadId = null;
+
+        async function loadFollowups() {
+            const tbody = document.getElementById('followupBody');
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:24px;">Loading…</td></tr>';
+            try {
+                const data = await api.getFollowups(currentFilter);
+                const items = data.followups || [];
+                if (!items.length) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="9">
+                                <div class="empty-state">
+                                    <div class="empty-icon-wrap">${getIcon('followups')}</div>
+                                    <div class="empty-title">No Follow-ups</div>
+                                    <div class="empty-desc">No follow-ups currently scheduled for <strong>${currentFilter}</strong>.</div>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = items.map(l => {
+                    const d = l.next_followup_date ? l.next_followup_date.substring(0, 10) : '—';
+                    const isOverdue = currentFilter === 'overdue' || (l.next_followup_date && new Date(l.next_followup_date) < new Date());
+
+                    return `
+                        <tr>
+                            <td><strong style="color:${isOverdue ? 'var(--danger)' : 'var(--primary)'}; font-family:var(--font-mono); font-size:12.5px;">${d}</strong></td>
+                            <td><a href="leads.html?q=${l.lead_id}" style="font-weight:700; font-family:var(--font-mono); font-size:12px;">${l.lead_id}</a></td>
+                            <td><strong>${esc(l.business_name)}</strong></td>
+                            <td>${esc(l.city)}</td>
+                            <td style="font-family:var(--font-mono); font-size:12px;">${esc(l.phone || '—')}</td>
+                            <td>${outreachStatusBadge(l.outreach_status)}</td>
+                            <td><span style="font-size:12px; color:var(--text-secondary);">${esc(l.response_status || '—')}</span></td>
+                            <td style="font-size:12px; color:var(--text-secondary); max-width:240px; overflow:hidden; text-overflow:ellipsis;">${esc(l.remarks || '—')}</td>
+                            <td style="text-align: right;">
+                                <div style="display:inline-flex; gap:6px;">
+                                    <button class="btn btn-secondary btn-sm" onclick="openRescheduleModal('${l.lead_id}', '${d}')">Reschedule</button>
+                                    <button class="btn btn-primary btn-sm" onclick="markCompleted('${l.lead_id}')">Done ✓</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        function esc(str) {
+            return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        function switchTab(filter, btn) {
+            currentFilter = filter;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            loadFollowups();
+        }
+
+        function openRescheduleModal(leadId, currentDate) {
+            reschedulingLeadId = leadId;
+            document.getElementById('rescheduleDate').value = currentDate !== '—' ? currentDate : new Date().toISOString().substring(0, 10);
+            document.getElementById('rescheduleModal').classList.add('active');
+        }
+
+        function closeRescheduleModal() {
+            document.getElementById('rescheduleModal').classList.remove('active');
+            reschedulingLeadId = null;
+        }
+
+        async function confirmReschedule() {
+            if (!reschedulingLeadId) return;
+            const newDate = document.getElementById('rescheduleDate').value;
+            try {
+                await api.updateLead(reschedulingLeadId, { next_followup_date: newDate });
+                showToast('Follow-up rescheduled successfully', 'success');
+                closeRescheduleModal();
+                loadFollowups();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function markCompleted(leadId) {
+            try {
+                await api.updateLead(leadId, { outreach_status: 'Completed', next_followup_date: null });
+                showToast('Follow-up marked completed!', 'success');
+                loadFollowups();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        loadFollowups();
+    </script>
+</body>
+</html>

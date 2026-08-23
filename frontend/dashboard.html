@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="TechvionNova CRM – Analytics & KPI Dashboard">
+    <title>Dashboard | TechvionNova CRM</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app-layout" id="app">
+        <!-- Sidebar injected by JS -->
+        <div class="main-wrapper">
+            <!-- Topbar injected by JS -->
+            <div id="topbarContainer"></div>
+
+            <main class="content-body">
+                <!-- Top Key Metrics Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Total Leads</span>
+                            <div class="stat-icon-wrap">📋</div>
+                        </div>
+                        <div class="stat-value-row">
+                            <span class="stat-number" id="kpi_total">0</span>
+                            <span class="stat-trend trend-up">↑ 12.4%</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">New Leads</span>
+                            <div class="stat-icon-wrap">✨</div>
+                        </div>
+                        <div class="stat-value-row">
+                            <span class="stat-number" id="kpi_new">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Emails Found</span>
+                            <div class="stat-icon-wrap">✉️</div>
+                        </div>
+                        <div class="stat-value-row">
+                            <span class="stat-number" id="kpi_emails" style="color:var(--success);">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Contacted</span>
+                            <div class="stat-icon-wrap">📞</div>
+                        </div>
+                        <div class="stat-value-row">
+                            <span class="stat-number" id="kpi_contacted" style="color:var(--primary);">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Interested</span>
+                            <div class="stat-icon-wrap">🔥</div>
+                        </div>
+                        <div class="stat-value-row">
+                            <span class="stat-number" id="kpi_interested" style="color:#7c3aed;">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Deals Won</span>
+                            <div class="stat-icon-wrap">🏆</div>
+                        </div>
+                        <div class="stat-value-row">
+                            <span class="stat-number" id="kpi_deals_won" style="color:var(--success);">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Secondary Pipeline Counter Row -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px;">
+                    <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">No Website</span>
+                        <strong style="color:var(--danger); font-size:15px;" id="kpi_no_web">0</strong>
+                    </div>
+                    <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Outdated Sites</span>
+                        <strong style="color:var(--warning); font-size:15px;" id="kpi_outdated">0</strong>
+                    </div>
+                    <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Follow-ups Due</span>
+                        <strong style="color:var(--warning); font-size:15px;" id="kpi_followups">0</strong>
+                    </div>
+                    <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Proposals Sent</span>
+                        <strong style="color:var(--text-primary); font-size:15px;" id="kpi_proposals">0</strong>
+                    </div>
+                    <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Active Projects</span>
+                        <strong style="color:var(--primary); font-size:15px;" id="kpi_active_projects">0</strong>
+                    </div>
+                </div>
+
+                <!-- Clean Charts Breakdown Grid -->
+                <div class="chart-grid">
+                    <!-- Leads by City -->
+                    <div class="chart-card">
+                        <div class="chart-card-title">📍 Leads by Top Cities</div>
+                        <div id="chartCity">
+                            <div class="skeleton skeleton-text" style="width:100%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Leads by Category -->
+                    <div class="chart-card">
+                        <div class="chart-card-title">🏢 Leads by Business Category</div>
+                        <div id="chartType">
+                            <div class="skeleton skeleton-text" style="width:100%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Website Status -->
+                    <div class="chart-card">
+                        <div class="chart-card-title">🌐 Leads by Website Status</div>
+                        <div id="chartWebStatus">
+                            <div class="skeleton skeleton-text" style="width:100%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Outreach Funnel -->
+                    <div class="chart-card">
+                        <div class="chart-card-title">📤 Outreach Funnel</div>
+                        <div id="chartOutreach">
+                            <div class="skeleton skeleton-text" style="width:100%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Deal Pipeline -->
+                    <div class="chart-card">
+                        <div class="chart-card-title">🤝 Deal Pipeline</div>
+                        <div id="chartDeal">
+                            <div class="skeleton skeleton-text" style="width:100%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Project Delivery -->
+                    <div class="chart-card">
+                        <div class="chart-card-title">🚀 Project Delivery Status</div>
+                        <div id="chartProject">
+                            <div class="skeleton skeleton-text" style="width:100%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        const topActionsHtml = `
+            <a href="collect.html" class="btn btn-primary btn-sm">${getIcon('search')} Collect Leads</a>
+            <a href="leads.html" class="btn btn-secondary btn-sm">${getIcon('leads')} View Leads</a>
+        `;
+        document.getElementById('topbarContainer').innerHTML = renderTopNav('Analytics Dashboard', 'Live performance metrics, lead distribution and sales pipeline.', topActionsHtml);
+        document.getElementById('app').insertAdjacentHTML('afterbegin', renderSidebar('dashboard'));
+
+        async function loadDashboard() {
+            try {
+                const data = await api.getAnalytics();
+                const cards = data.cards || {};
+                document.getElementById('kpi_total').textContent = (cards.total_leads || 0).toLocaleString();
+                document.getElementById('kpi_new').textContent = (cards.new_leads || 0).toLocaleString();
+                document.getElementById('kpi_no_web').textContent = (cards.no_website || 0).toLocaleString();
+                document.getElementById('kpi_outdated').textContent = (cards.outdated_websites || 0).toLocaleString();
+                document.getElementById('kpi_emails').textContent = (cards.public_emails || 0).toLocaleString();
+                document.getElementById('kpi_contacted').textContent = (cards.contacted || 0).toLocaleString();
+                document.getElementById('kpi_followups').textContent = (cards.followups_due || 0).toLocaleString();
+                document.getElementById('kpi_interested').textContent = (cards.interested || 0).toLocaleString();
+                document.getElementById('kpi_proposals').textContent = (cards.proposals_sent || 0).toLocaleString();
+                document.getElementById('kpi_deals_won').textContent = (cards.deals_won || 0).toLocaleString();
+                document.getElementById('kpi_active_projects').textContent = (cards.active_projects || 0).toLocaleString();
+
+                const charts = data.charts || {};
+                renderBarChart('chartCity', charts.by_city || [], '#2563eb');
+                renderBarChart('chartType', charts.by_type || [], '#10b981');
+                renderBarChart('chartWebStatus', charts.by_website_status || [], '#f59e0b');
+                renderBarChart('chartOutreach', charts.by_outreach || [], '#8b5cf6');
+                renderBarChart('chartDeal', charts.by_deal || [], '#0ea5e9');
+                renderBarChart('chartProject', charts.by_project || [], '#059669');
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        function renderBarChart(containerId, items, barColor) {
+            const el = document.getElementById(containerId);
+            if (!items || !items.length) {
+                el.innerHTML = '<div style="font-size:12px; color:var(--text-muted); padding:16px 0; text-align:center;">No data recorded yet.</div>';
+                return;
+            }
+            const max = Math.max(...items.map(i => i.count), 1);
+            el.innerHTML = items.map(item => {
+                const pct = Math.round((item.count / max) * 100);
+                return `
+                    <div class="bar-row">
+                        <span class="bar-label" title="${item.name}">${item.name}</span>
+                        <div class="bar-track">
+                            <div class="bar-fill" style="width: ${pct}%; background: ${barColor};"></div>
+                        </div>
+                        <span class="bar-count">${item.count}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        loadDashboard();
+    </script>
+</body>
+</html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Background Google Places Collection Jobs – TechvionNova CRM">
+    <title>Collection Jobs | TechvionNova CRM</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app-layout" id="app">
+        <!-- Sidebar injected by JS -->
+        <div class="main-wrapper">
+            <!-- Topbar injected by JS -->
+            <div id="topbarContainer"></div>
+
+            <main class="content-body">
+                <!-- Job Summary KPI Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Running Jobs</span>
+                            <div class="stat-icon-wrap">⚡</div>
+                        </div>
+                        <div class="stat-value-row">
+                            <span class="stat-number" id="kpi_running" style="color:var(--primary);">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Completed Jobs</span>
+                            <div class="stat-icon-wrap">✓</div>
+                        </div>
+                        <div class="stat-value-row">
+                            <span class="stat-number" id="kpi_completed" style="color:var(--success);">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Failed / Stopped</span>
+                            <div class="stat-icon-wrap">⚠️</div>
+                        </div>
+                        <div class="stat-value-row">
+                            <span class="stat-number" id="kpi_failed" style="color:var(--warning);">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">Total Leads Imported</span>
+                            <div class="stat-icon-wrap">📥</div>
+                        </div>
+                        <div class="stat-value-row">
+                            <span class="stat-number" id="kpi_total_imported">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Start Background Job Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg> Start Background Collection Job</span>
+                        <span style="font-size:12px; color:var(--text-muted);">Asynchronous automated lead import</span>
+                    </div>
+
+                    <form id="jobForm" onsubmit="startJob(event)">
+                        <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+                            <div class="form-group">
+                                <label for="jobCity">Target City</label>
+                                <select id="jobCity" class="filter-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="jobType">Business Type</label>
+                                <select id="jobType" class="filter-select"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="jobMax">Max Result Limit</label>
+                                <select id="jobMax" class="filter-select">
+                                    <option value="20">20 results</option>
+                                    <option value="40">40 results</option>
+                                    <option value="60" selected>60 results (Max)</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="align-self: flex-end;">
+                                <button type="submit" class="btn btn-primary" id="startJobBtn">
+                                    ⚡ Launch Job
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Jobs History Table -->
+                <div class="table-container">
+                    <div class="card-header" style="padding:16px 20px; border-bottom:1px solid var(--border); margin-bottom:0;">
+                        <span class="card-title">Job Execution History</span>
+                        <button class="btn btn-secondary btn-sm" onclick="loadJobs()">🔄 Refresh</button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Job ID</th>
+                                    <th>Target Query</th>
+                                    <th>Progress</th>
+                                    <th>Imported</th>
+                                    <th>Duplicates</th>
+                                    <th>Status</th>
+                                    <th>Started At</th>
+                                    <th style="text-align: right;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="jobsBody">
+                                <tr><td colspan="8" style="text-align:center; padding:24px;">Loading jobs…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Logs Modal -->
+    <div class="modal-overlay" id="logsModal">
+        <div class="modal" style="max-width: 650px;">
+            <div class="modal-header">
+                <h3 id="logsTitle">Job Logs</h3>
+                <button class="modal-close" onclick="closeLogsModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="logsContent" style="font-family:var(--font-mono); font-size:12px; background:var(--sidebar-bg); color:#f8fafc; padding:16px; border-radius:var(--radius-md); max-height:380px; overflow-y:auto; line-height:1.6;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeLogsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        const topActionsHtml = `
+            <a href="collect.html" class="btn btn-secondary btn-sm">${getIcon('search')} Interactive Search</a>
+        `;
+        document.getElementById('topbarContainer').innerHTML = renderTopNav('Collection Jobs', 'Manage and monitor asynchronous Google Places collection tasks.', topActionsHtml);
+        document.getElementById('app').insertAdjacentHTML('afterbegin', renderSidebar('jobs'));
+
+        async function init() {
+            try {
+                const status = await api.getGoogleStatus();
+                if (status.cities) {
+                    document.getElementById('jobCity').innerHTML = status.cities.map(c => `<option value="${c}">${c}</option>`).join('');
+                }
+                if (status.business_types) {
+                    document.getElementById('jobType').innerHTML = status.business_types.map(t => `<option value="${t}">${t}</option>`).join('');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+            loadJobs();
+        }
+
+        async function loadJobs() {
+            const tbody = document.getElementById('jobsBody');
+            try {
+                const jobs = await api.getCollectionJobs();
+                if (!jobs.length) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="8">
+                                <div class="empty-state">
+                                    <div class="empty-icon-wrap">${getIcon('jobs')}</div>
+                                    <div class="empty-title">No Collection Jobs</div>
+                                    <div class="empty-desc">You haven't run any background jobs yet. Launch your first job above.</div>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                // Update KPI Cards
+                let running = 0, completed = 0, failed = 0, totalImp = 0;
+                jobs.forEach(j => {
+                    if (j.status === 'Running') running++;
+                    else if (j.status === 'Completed') completed++;
+                    else failed++;
+                    totalImp += (j.imported || 0);
+                });
+                document.getElementById('kpi_running').textContent = running;
+                document.getElementById('kpi_completed').textContent = completed;
+                document.getElementById('kpi_failed').textContent = failed;
+                document.getElementById('kpi_total_imported').textContent = totalImp.toLocaleString();
+
+                tbody.innerHTML = jobs.map(j => {
+                    let statusBadge = '<span class="badge badge-good">Completed</span>';
+                    if (j.status === 'Running') {
+                        statusBadge = '<span class="badge badge-contacted"><span class="spinner spinner-dark" style="width:8px;height:8px;"></span> Running</span>';
+                    } else if (j.status === 'Stopped') {
+                        statusBadge = '<span class="badge badge-outdated">Stopped</span>';
+                    } else if (j.status === 'Failed') {
+                        statusBadge = '<span class="badge badge-broken">Failed</span>';
+                    }
+
+                    const req = j.requested_results || 20;
+                    const proc = j.processed_results || 0;
+                    const pct = Math.min(100, Math.round((proc / req) * 100));
+
+                    const progressHtml = `
+                        <div style="display:flex; flex-direction:column; gap:3px; min-width:120px;">
+                            <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-secondary);">
+                                <span>${proc} / ${req}</span>
+                                <strong>${pct}%</strong>
+                            </div>
+                            <div class="score-track" style="width:100%;">
+                                <div class="score-fill" style="width:${pct}%; background:var(--primary);"></div>
+                            </div>
+                        </div>
+                    `;
+
+                    return `
+                        <tr>
+                            <td><strong style="font-family:var(--font-mono); font-size:12px;">${j.job_id}</strong></td>
+                            <td><strong>${esc(j.query)}</strong></td>
+                            <td>${progressHtml}</td>
+                            <td><strong style="color:var(--success); font-size:13px;">${j.imported || 0}</strong></td>
+                            <td><span style="color:var(--text-secondary); font-size:12px;">${j.duplicates || 0}</span></td>
+                            <td>${statusBadge}</td>
+                            <td style="font-size:12px; color:var(--text-secondary); font-family:var(--font-mono);">${j.started_at ? j.started_at.substring(0, 16).replace('T', ' ') : '—'}</td>
+                            <td style="text-align: right;">
+                                <div style="display:inline-flex; gap:6px;">
+                                    ${j.status === 'Running' ? `<button class="btn btn-danger btn-sm" onclick="stopJob('${j.job_id}')">Stop</button>` : ''}
+                                    <button class="btn btn-secondary btn-sm" onclick="viewLogs('${j.job_id}')">Logs</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        function esc(str) {
+            return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        async function startJob(e) {
+            e.preventDefault();
+            const city = document.getElementById('jobCity').value;
+            const business_type = document.getElementById('jobType').value;
+            const max_results = parseInt(document.getElementById('jobMax').value, 10);
+
+            try {
+                const res = await api.startCollectionJob({ city, business_type, max_results });
+                showToast(`Job ${res.job_id} launched!`, 'success');
+                loadJobs();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function stopJob(jobId) {
+            if (!confirm(`Stop collection job ${jobId}? Partial progress will be preserved.`)) return;
+            try {
+                await api.stopCollectionJob(jobId);
+                showToast(`Job ${jobId} stopped`, 'info');
+                loadJobs();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function viewLogs(jobId) {
+            document.getElementById('logsTitle').textContent = `Logs for ${jobId}`;
+            const box = document.getElementById('logsContent');
+            box.textContent = 'Loading logs…';
+            document.getElementById('logsModal').classList.add('active');
+            try {
+                const logs = await api.getJobLogs(jobId);
+                if (!logs.length) {
+                    box.textContent = 'No log entries recorded.';
+                    return;
+                }
+                box.innerHTML = logs.map(l => `[${l.timestamp ? l.timestamp.substring(11, 19) : ''}] [${l.level}] ${esc(l.message)}`).join('<br>');
+            } catch (e) {
+                box.textContent = 'Failed to load logs: ' + e.message;
+            }
+        }
+
+        function closeLogsModal() {
+            document.getElementById('logsModal').classList.remove('active');
+        }
+
+        init();
+    </script>
+</body>
+</html>

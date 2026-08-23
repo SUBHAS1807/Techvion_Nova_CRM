@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Settings & Google Places API Diagnostics – TechvionNova CRM">
+    <title>Google API Settings | TechvionNova CRM</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .settings-wrap { max-width: 800px; }
+        .status-box {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; border-radius: var(--radius-md);
+            background: var(--surface-alt); border: 1px solid var(--border);
+            margin-bottom: 20px;
+        }
+        .status-indicator { display: flex; align-items: center; gap: 12px; }
+        .status-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--text-muted); display: inline-block;
+        }
+        .status-dot.active { background: var(--success); box-shadow: 0 0 0 3px rgba(16,185,129,0.2); }
+        .status-dot.error { background: var(--danger); box-shadow: 0 0 0 3px rgba(239,68,68,0.2); }
+        .test-result-box {
+            margin-top: 14px; padding: 14px 18px; border-radius: var(--radius-md);
+            font-size: 13px; line-height: 1.5; display: none;
+        }
+        .test-result-box.success {
+            display: block; background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text);
+        }
+        .test-result-box.failure {
+            display: block; background: var(--danger-bg); border: 1px solid var(--danger-border); color: var(--danger-text);
+        }
+        .setup-guide {
+            background: #ffffff; border: 1px solid var(--border); border-radius: var(--radius-lg);
+            padding: 20px; margin-top: 20px; font-size: 13px; color: var(--text-secondary);
+        }
+        .setup-guide ol { padding-left: 20px; margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .setup-guide code { background: var(--surface-alt); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); }
+    </style>
+</head>
+<body>
+    <div class="app-layout" id="app">
+        <!-- Sidebar injected by JS -->
+        <div class="main-wrapper">
+            <!-- Topbar injected by JS -->
+            <div id="topbarContainer"></div>
+
+            <main class="content-body">
+                <div class="settings-wrap">
+                    <!-- API Connection & Status Card -->
+                    <div class="card" id="google-api">
+                        <div class="card-header">
+                            <span class="card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-1.5 1.5L16 7l-1.5-1.5M19 4.5L15 8.5M10.5 13.5L3 21l3 3 7.5-7.5"></path><circle cx="16.5" cy="7.5" r="4.5"></circle></svg> Google Places API (New) Configuration</span>
+                            <span style="font-size:12px; color:var(--text-muted);">Official REST Endpoint</span>
+                        </div>
+
+                        <div class="status-box">
+                            <div class="status-indicator">
+                                <span class="status-dot" id="statusDot"></span>
+                                <div>
+                                    <strong style="font-size: 13.5px; color:var(--text-primary);" id="statusText">Checking API status…</strong>
+                                    <div style="font-size: 12px; color: var(--text-secondary); font-family:var(--font-mono);" id="keyPreviewText">API Key: Not Configured</div>
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary" id="testConnBtn" onclick="testConnection()">
+                                🔌 Test Connection
+                            </button>
+                        </div>
+
+                        <div id="testResultBox" class="test-result-box"></div>
+
+                        <!-- Update API Key Form -->
+                        <div style="margin-top: 20px; border-top: 1px solid var(--border-light); padding-top: 16px;">
+                            <h4 style="font-size: 13px; font-weight: 700; margin-bottom: 8px; color:var(--text-primary);">Update Google API Key</h4>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <input type="password" id="apiKeyInput" placeholder="Paste your Google Cloud API key here (AIzaSy...)" style="flex:1; min-width:240px; padding:9px 12px; border:1px solid var(--border); border-radius:var(--radius-md); font-size:13px; outline:none;">
+                                <button class="btn btn-primary" onclick="saveApiKey()">Save Key</button>
+                            </div>
+                            <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+                                The API key is securely stored server-side in <code>.env</code> and is never exposed in client JavaScript.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- API Usage Metrics -->
+                    <div class="card">
+                        <div class="card-header">
+                            <span class="card-title">📊 API Usage & Quotas</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; text-align: center;">
+                            <div style="background: var(--surface-alt); padding: 16px; border-radius: var(--radius-md); border:1px solid var(--border);">
+                                <div style="font-size: 24px; font-weight: 800; color: var(--primary);" id="totalApiRequests">0</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; margin-top: 4px;">Total API Calls</div>
+                            </div>
+                            <div style="background: var(--surface-alt); padding: 16px; border-radius: var(--radius-md); border:1px solid var(--border);">
+                                <div style="font-size: 24px; font-weight: 800; color: var(--success);" id="totalLeadsInDb">0</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; margin-top: 4px;">Leads in Database</div>
+                            </div>
+                            <div style="background: var(--surface-alt); padding: 16px; border-radius: var(--radius-md); border:1px solid var(--border);">
+                                <div style="font-size: 24px; font-weight: 800; color: var(--text-primary);">60 / Job</div>
+                                <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; margin-top: 4px;">Max Limit Per Run</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Google Cloud Setup Guide -->
+                    <div class="setup-guide">
+                        <h4 style="font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">Google Cloud Platform Setup Guide</h4>
+                        <p>To use Google Places API (New) for automated lead generation:</p>
+                        <ol>
+                            <li>Open the <strong><a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console ↗</a></strong> and create or select a project.</li>
+                            <li>Go to <strong>APIs & Services → Library</strong> and enable <code>Places API (New)</code>.</li>
+                            <li>Ensure a billing account is linked (Google Cloud provides $200 recurring monthly free credit).</li>
+                            <li>Go to <strong>Credentials</strong>, generate an API Key, and paste it into the field above.</li>
+                        </ol>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        const topActionsHtml = `
+            <a href="collect.html" class="btn btn-secondary btn-sm">${getIcon('search')} Google Places Search</a>
+        `;
+        document.getElementById('topbarContainer').innerHTML = renderTopNav('Settings', 'Configure Google API keys, database options and system diagnostics.', topActionsHtml);
+        document.getElementById('app').insertAdjacentHTML('afterbegin', renderSidebar('settings'));
+
+        async function init() {
+            try {
+                const res = await api.getGoogleStatus();
+                const statusDot = document.getElementById('statusDot');
+                const statusText = document.getElementById('statusText');
+                const keyPreviewText = document.getElementById('keyPreviewText');
+
+                if (res.configured) {
+                    statusDot.className = 'status-dot active';
+                    statusText.textContent = 'API Key Configured & Ready';
+                    keyPreviewText.textContent = `API Key: ${res.masked_key}`;
+                } else {
+                    statusDot.className = 'status-dot error';
+                    statusText.textContent = 'API Key Not Configured';
+                    keyPreviewText.textContent = 'Google Places API key missing in .env';
+                }
+
+                document.getElementById('totalApiRequests').textContent = res.total_api_calls || 0;
+                document.getElementById('totalLeadsInDb').textContent = res.total_leads || 0;
+            } catch (e) {
+                showToast('Failed to check API status', 'error');
+            }
+        }
+
+        async function testConnection() {
+            const btn = document.getElementById('testConnBtn');
+            const box = document.getElementById('testResultBox');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-dark"></span> Testing…';
+            box.style.display = 'none';
+
+            try {
+                const res = await api.testGoogleConnection();
+                if (res.ok) {
+                    box.className = 'test-result-box success';
+                    box.innerHTML = `
+                        <strong>${res.message || '✓ Google Places API connection successful'}</strong>
+                        <div style="font-size:12px; margin-top:4px;">Places API (New) is responsive and ready for search & collection.</div>
+                    `;
+                    showToast('Connection test passed!', 'success');
+                } else {
+                    box.className = 'test-result-box failure';
+                    box.innerHTML = `
+                        <strong>✗ Google Places API connection failed</strong>
+                        <div style="font-size:12px; margin-top:4px;"><strong>Reason:</strong> ${res.reason || res.error || 'Unknown error'}</div>
+                    `;
+                    showToast('Connection test failed', 'error');
+                }
+            } catch (e) {
+                box.className = 'test-result-box failure';
+                box.innerHTML = `<strong>✗ Connection failed:</strong> ${e.message}`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🔌 Test Connection';
+            }
+        }
+
+        async function saveApiKey() {
+            const key = document.getElementById('apiKeyInput').value.trim();
+            if (!key) { showToast('Please enter an API key', 'error'); return; }
+            try {
+                await api.saveGoogleApiKey(key);
+                showToast('API key saved successfully', 'success');
+                document.getElementById('apiKeyInput').value = '';
+                init();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
