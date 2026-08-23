@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="TechvionNova CRM – Complete Lead Management Table">
     <title>Leads Management | TechvionNova CRM</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -170,10 +171,11 @@
                         <span id="selectedCount">0 Leads Selected</span>
                     </div>
                     <div class="bulk-right">
-                        <button class="btn btn-secondary btn-sm" onclick="bulkAnalyzeWebsites()">🌐 Analyze Websites</button>
+                        <button class="btn btn-primary btn-sm" onclick="startBulkAnalysisModal()">🌐 Analyze Selected Websites</button>
+                        <button class="btn btn-secondary btn-sm" onclick="triggerExport('csv', 'selected')">📄 Export CSV</button>
+                        <button class="btn btn-secondary btn-sm" onclick="triggerExport('excel', 'selected')">📊 Export Excel</button>
                         <button class="btn btn-secondary btn-sm" onclick="bulkChangeOutreach()">📞 Mark Contacted</button>
                         <button class="btn btn-secondary btn-sm" onclick="bulkSetFollowup()">📅 Set Follow-up</button>
-                        <button class="btn btn-secondary btn-sm" onclick="exportCsv('selected')">📥 Export</button>
                         <button class="btn btn-danger btn-sm" onclick="bulkDeleteSelected()">🗑 Delete</button>
                         <button class="btn btn-ghost btn-sm" onclick="deselectAll()">Deselect</button>
                     </div>
@@ -242,8 +244,9 @@
                 <h3 class="drawer-title" id="drawerBusinessName">—</h3>
                 <span class="drawer-subtitle" id="drawerBusinessMeta">—</span>
             </div>
-            <div class="drawer-actions">
+            <div class="drawer-actions" style="display:flex; align-items:center; gap:8px;">
                 <button class="btn btn-secondary btn-sm" onclick="openEditModalFromDrawer()">✏️ Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="promptDeleteFromDrawer()">🗑 Delete</button>
                 <button class="modal-close" onclick="closeDrawer()" title="Close Drawer">✕</button>
             </div>
         </div>
@@ -270,6 +273,8 @@
                 <div class="drawer-grid">
                     <div class="drawer-item"><span class="drawer-label">Phone</span><span class="drawer-val" id="dr_phone">—</span></div>
                     <div class="drawer-item"><span class="drawer-label">Email</span><span class="drawer-val" id="dr_email">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Email Source</span><span class="drawer-val" id="dr_email_source">—</span></div>
+                    <div class="drawer-item"><span class="drawer-label">Email Verification</span><span class="drawer-val" id="dr_email_verif">—</span></div>
                     <div class="drawer-item"><span class="drawer-label">Instagram</span><span class="drawer-val" id="dr_instagram">—</span></div>
                     <div class="drawer-item"><span class="drawer-label">Facebook</span><span class="drawer-val" id="dr_facebook">—</span></div>
                 </div>
@@ -499,12 +504,115 @@
         </div>
     </div>
 
+    <!-- ══════ Bulk Website & Email Discovery Modal ══════ -->
+    <div class="modal-overlay" id="bulkAnalysisModal">
+        <div class="modal" style="max-width: 580px;">
+            <div class="modal-header">
+                <h3>🌐 Bulk Website & Email Discovery</h3>
+                <button class="modal-close" onclick="closeBulkAnalysisModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 12.5px; color: var(--text-secondary); margin-bottom: 14px;">
+                    Crawls business websites (homepage, contact, and about pages) to discover verified public business emails, phone numbers, and website status.
+                </p>
+
+                <!-- KPI Metric Tiles -->
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; text-align: center;">
+                    <div style="background: var(--surface-alt); padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+                        <div style="font-size: 17px; font-weight: 800; color: var(--primary);" id="bulkProcessed">0 / 0</div>
+                        <div style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-top: 2px;">Processed</div>
+                    </div>
+                    <div style="background: var(--surface-alt); padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+                        <div style="font-size: 17px; font-weight: 800; color: var(--success);" id="bulkEmailsFound">0</div>
+                        <div style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-top: 2px;">Emails Found</div>
+                    </div>
+                    <div style="background: var(--surface-alt); padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+                        <div style="font-size: 17px; font-weight: 800; color: var(--text-secondary);" id="bulkNoEmail">0</div>
+                        <div style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-top: 2px;">No Email</div>
+                    </div>
+                    <div style="background: var(--surface-alt); padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+                        <div style="font-size: 17px; font-weight: 800; color: var(--danger);" id="bulkErrors">0</div>
+                        <div style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-top: 2px;">Errors</div>
+                    </div>
+                </div>
+
+                <!-- Progress Bar & Current Status -->
+                <div style="margin-bottom: 14px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
+                        <span id="bulkStatusMsg" style="font-weight: 500; color: var(--text-secondary);">Ready to start…</span>
+                        <span id="bulkPercent" style="font-weight: 700; color: var(--primary);">0%</span>
+                    </div>
+                    <div style="width: 100%; height: 8px; background: var(--surface-alt); border-radius: 4px; overflow: hidden; border: 1px solid var(--border);">
+                        <div id="bulkProgressBar" style="width: 0%; height: 100%; background: var(--primary); transition: width 0.25s ease;"></div>
+                    </div>
+                </div>
+
+                <!-- Real-time Live Log Box -->
+                <div id="bulkLogBox" style="font-family: var(--font-mono); font-size: 11px; background: var(--sidebar-bg); color: #f8fafc; padding: 12px; border-radius: var(--radius-md); max-height: 160px; overflow-y: auto; line-height: 1.6;">
+                    <div style="color: #94a3b8;">Ready. Click "Start Discovery" to begin analyzing selected leads.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" id="bulkStopBtn" onclick="stopBulkAnalysis()" style="display: none;">⏹ Stop Analysis</button>
+                <button class="btn btn-secondary" id="bulkCloseBtn" onclick="closeBulkAnalysisModal()">Close</button>
+                <button class="btn btn-primary" id="bulkStartBtn" onclick="runBulkAnalysis()">Start Discovery</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════ Password-Protected Delete Confirmation Modal ══════ -->
+    <div class="modal-overlay" id="deleteConfirmModal">
+        <div class="modal" style="max-width: 440px;">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+                <h3 style="color: var(--danger); display: flex; align-items: center; gap: 8px; font-size: 16px; margin: 0;">
+                    <span>🗑</span> <span id="delModalTitle">Delete Lead?</span>
+                </h3>
+                <button class="modal-close" onclick="closeDeleteModal()">✕</button>
+            </div>
+            <div class="modal-body" style="padding-top: 16px;">
+                <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;" id="delModalSubtitle">
+                    You are about to permanently delete this lead:
+                </p>
+
+                <!-- Lead details card / Summary block -->
+                <div id="delLeadInfoCard" style="background: var(--surface-alt); border: 1px solid var(--border); border-left: 3px solid var(--danger); border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 14px;">
+                    <div id="delLeadName" style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 2px;">Business Name</div>
+                    <div id="delLeadId" style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">TVN-000000</div>
+                </div>
+
+                <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius-md); padding: 9px 12px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #b91c1c;">
+                    <span style="font-size: 14px;">⚠</span>
+                    <span><strong>Warning:</strong> This action cannot be undone.</span>
+                </div>
+
+                <!-- Password Input -->
+                <div class="form-group" style="margin-bottom: 6px;">
+                    <label class="form-label" style="font-weight: 600; font-size: 12.5px;">Enter Deletion Password <span style="color:var(--danger);">*</span></label>
+                    <input type="password" id="delPasswordInput" class="form-input" placeholder="••••••••••••••" autocomplete="off" onkeydown="if(event.key==='Enter') confirmDeleteAction()">
+                    <div id="delPasswordError" style="color: var(--danger); font-size: 12px; margin-top: 6px; display: none; font-weight: 600;"></div>
+                </div>
+            </div>
+            <div class="modal-footer" style="gap: 10px; border-top: 1px solid var(--border); padding-top: 12px;">
+                <button class="btn btn-secondary" onclick="closeDeleteModal()" id="delCancelBtn">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmDeleteAction()" id="delConfirmBtn" style="background: var(--danger); color: #fff; border-color: var(--danger);">Confirm Delete</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/api.js"></script>
     <script>
         // Inject Top Navigation
         const topActionsHtml = `
             <button class="btn btn-secondary btn-sm" onclick="openImportModal()">📁 Import CSV</button>
-            <button class="btn btn-secondary btn-sm" onclick="exportCsv('filtered')">📥 Export</button>
+            <div class="export-dropdown-wrapper" style="position:relative; display:inline-block;">
+                <button class="btn btn-secondary btn-sm" onclick="toggleExportMenu(event)">
+                    📥 Export Data ▾
+                </button>
+                <div class="column-popover export-menu" id="exportMenu" style="right:0; width:190px; padding:6px;">
+                    <button class="export-menu-item" onclick="triggerExport('csv', 'filtered')">📄 Export CSV (.csv)</button>
+                    <button class="export-menu-item" onclick="triggerExport('excel', 'filtered')">📊 Export Excel (.xlsx)</button>
+                </div>
+            </div>
             <button class="btn btn-primary btn-sm" onclick="openCreateModal()">${getIcon('plus')} Add Lead</button>
         `;
         document.getElementById('topbarContainer').innerHTML = renderTopNav('Leads Management', 'Manage, qualify and convert your business leads.', topActionsHtml);
@@ -723,16 +831,22 @@
                     </div>
                 `;
 
-                // Email Column with verification indicator
-                let emailHtml = `<span class="email-none">— Not found</span>`;
+                // Email Column with verification indicator & discovery source
+                let emailHtml = `<span class="email-none" style="color:var(--text-muted); font-size:12px;">Not analyzed</span>`;
                 if (l.email) {
-                    const isVerified = l.email_verification_status === 'Verified';
                     emailHtml = `
                         <div class="email-cell" title="${esc(l.email)}">
-                            <span class="email-verified">${isVerified ? '✓' : '✉'}</span>
-                            <span style="max-width:140px; overflow:hidden; text-overflow:ellipsis; display:inline-block;">${esc(l.email)}</span>
+                            <span class="email-verified" style="color:var(--success); font-weight:700; font-size:12px;">✓</span>
+                            <div style="min-width:0;">
+                                <a href="mailto:${esc(l.email)}" style="color:var(--text-primary); font-weight:600; text-decoration:none; display:inline-block; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(l.email)}</a>
+                                <div style="font-size:10px; color:var(--text-muted); line-height:1.2;">Source: ${esc(l.email_source || 'Website')}</div>
+                            </div>
                         </div>
                     `;
+                } else if (l.website_analysis) {
+                    emailHtml = `<span class="email-none" style="color:var(--text-muted); font-size:12px;">— No public email found</span>`;
+                } else if (!l.current_website) {
+                    emailHtml = `<span class="email-none" style="color:var(--text-muted); font-size:12px;">— No website</span>`;
                 }
 
                 // Website Column
@@ -770,7 +884,7 @@
                             <div style="display:inline-flex; gap:4px;">
                                 <button class="action-btn" onclick="openLeadDrawer('${l.lead_id}')" title="View details in drawer">👁</button>
                                 <button class="action-btn" onclick="openEditModal('${l.lead_id}')" title="Edit Lead">✏️</button>
-                                <button class="action-btn" onclick="deleteLead('${l.lead_id}')" title="Delete">🗑</button>
+                                <button class="action-btn" onclick="promptDeleteLead('${l.lead_id}', '${esc(l.business_name)}')" title="Delete Lead" style="color:var(--danger);">🗑</button>
                             </div>
                         </td>
                     </tr>
@@ -821,17 +935,113 @@
             document.getElementById('selectAll').checked = count === currentLeads.length && count > 0;
         }
 
-        async function bulkDeleteSelected() {
-            if (!selectedLeadIds.size) return;
-            if (!confirm(`Delete ${selectedLeadIds.size} selected leads permanently?`)) return;
+        // ── Password-Protected Deletion Logic ─────────────────────────
+        let pendingDelete = null; // { mode: 'single', leadId, businessName } or { mode: 'bulk', ids: [...] }
+
+        function promptDeleteLead(leadId, businessName) {
+            const lead = currentLeads.find(l => l.lead_id === leadId);
+            const name = businessName || (lead ? lead.business_name : 'Lead');
+            pendingDelete = { mode: 'single', leadId, businessName: name };
+
+            document.getElementById('delModalTitle').textContent = 'Delete Lead?';
+            document.getElementById('delModalSubtitle').textContent = 'You are about to permanently delete:';
+            document.getElementById('delLeadInfoCard').innerHTML = `
+                <div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 2px;">☕ ${esc(name)}</div>
+                <div style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">Lead ID: ${esc(leadId)}</div>
+            `;
+            document.getElementById('delPasswordInput').value = '';
+            document.getElementById('delPasswordError').style.display = 'none';
+            document.getElementById('delPasswordError').textContent = '';
+            document.getElementById('delConfirmBtn').disabled = false;
+            document.getElementById('delConfirmBtn').textContent = 'Confirm Delete';
+
+            document.getElementById('deleteConfirmModal').classList.add('active');
+            setTimeout(() => document.getElementById('delPasswordInput').focus(), 50);
+        }
+
+        function promptDeleteFromDrawer() {
+            if (!activeDrawerLeadId) return;
+            const bName = document.getElementById('drawerBusinessName').textContent;
+            promptDeleteLead(activeDrawerLeadId, bName);
+        }
+
+        function bulkDeleteSelected() {
+            if (!selectedLeadIds.size) {
+                showToast('Please select at least one lead to delete', 'warning');
+                return;
+            }
+            const count = selectedLeadIds.size;
+            const ids = Array.from(selectedLeadIds);
+            pendingDelete = { mode: 'bulk', ids };
+
+            document.getElementById('delModalTitle').textContent = `Delete ${count} Leads?`;
+            document.getElementById('delModalSubtitle').textContent = `You are about to permanently delete ${count} selected leads.`;
+            document.getElementById('delLeadInfoCard').innerHTML = `
+                <div style="font-weight: 700; font-size: 14px; color: var(--danger); margin-bottom: 2px;">🗑 ${count} Leads Selected for Deletion</div>
+                <div style="font-size: 11.5px; color: var(--text-muted); font-family: var(--font-mono); line-height: 1.4;">
+                    IDs: ${esc(ids.slice(0, 4).join(', '))}${ids.length > 4 ? '…' : ''}
+                </div>
+            `;
+            document.getElementById('delPasswordInput').value = '';
+            document.getElementById('delPasswordError').style.display = 'none';
+            document.getElementById('delPasswordError').textContent = '';
+            document.getElementById('delConfirmBtn').disabled = false;
+            document.getElementById('delConfirmBtn').textContent = 'Confirm Delete';
+
+            document.getElementById('deleteConfirmModal').classList.add('active');
+            setTimeout(() => document.getElementById('delPasswordInput').focus(), 50);
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteConfirmModal').classList.remove('active');
+            document.getElementById('delPasswordInput').value = '';
+            document.getElementById('delPasswordError').style.display = 'none';
+            pendingDelete = null;
+        }
+
+        async function confirmDeleteAction() {
+            if (!pendingDelete) return;
+            const pw = document.getElementById('delPasswordInput').value.trim();
+            const errEl = document.getElementById('delPasswordError');
+            const btn = document.getElementById('delConfirmBtn');
+
+            if (!pw) {
+                errEl.textContent = '✕ Please enter the deletion password.';
+                errEl.style.display = 'block';
+                document.getElementById('delPasswordInput').focus();
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-dark" style="width:14px;height:14px;"></span> Deleting…';
+            errEl.style.display = 'none';
+
             try {
-                await api.bulkDelete(Array.from(selectedLeadIds));
-                showToast(`Deleted ${selectedLeadIds.size} leads`, 'success');
-                selectedLeadIds.clear();
+                if (pendingDelete.mode === 'single') {
+                    await api.deleteLead(pendingDelete.leadId, pw);
+                    closeDeleteModal();
+                    if (activeDrawerLeadId === pendingDelete.leadId) {
+                        closeDrawer();
+                    }
+                    selectedLeadIds.delete(pendingDelete.leadId);
+                    showToast('✓ Lead deleted successfully.', 'success');
+                } else if (pendingDelete.mode === 'bulk') {
+                    const res = await api.bulkDelete(pendingDelete.ids, pw);
+                    const deletedCount = res.deleted !== undefined ? res.deleted : pendingDelete.ids.length;
+                    closeDeleteModal();
+                    selectedLeadIds.clear();
+                    showToast(`✓ ${deletedCount} leads deleted successfully.`, 'success');
+                }
+
                 loadLeads();
                 loadStats();
-            } catch (e) {
-                showToast(e.message, 'error');
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = 'Confirm Delete';
+                errEl.textContent = `✕ ${err.message || 'Incorrect deletion password.'}`;
+                errEl.style.display = 'block';
+                document.getElementById('delPasswordInput').value = '';
+                document.getElementById('delPasswordInput').focus();
             }
         }
 
@@ -895,7 +1105,11 @@
                 document.getElementById('dr_place_id').innerHTML = lead.google_place_id ? `<code>${lead.google_place_id}</code>` : '—';
 
                 document.getElementById('dr_phone').textContent = lead.phone || '—';
-                document.getElementById('dr_email').textContent = lead.email || '—';
+                document.getElementById('dr_email').innerHTML = lead.email 
+                    ? `<a href="mailto:${esc(lead.email)}" style="font-weight:600; color:var(--primary); text-decoration:none;">${esc(lead.email)}</a>`
+                    : '<span style="color:var(--text-muted); font-style:italic;">— No public email found</span>';
+                document.getElementById('dr_email_source').textContent = lead.email_source || (lead.email ? 'Business Website' : '—');
+                document.getElementById('dr_email_verif').textContent = lead.email_verification_status || 'Not Checked';
                 document.getElementById('dr_instagram').textContent = lead.instagram || '—';
                 document.getElementById('dr_facebook').textContent = lead.facebook || '—';
 
@@ -1211,12 +1425,165 @@
             }
         }
 
-        function exportCsv(mode) {
+        // ── Export Dropdown & Functions ──────────────────────────────
+
+        function toggleExportMenu(e) {
+            e.stopPropagation();
+            const menu = document.getElementById('exportMenu');
+            menu.classList.toggle('active');
+        }
+
+        function closeExportMenu() {
+            const menu = document.getElementById('exportMenu');
+            if (menu) menu.classList.remove('active');
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.export-dropdown-wrapper')) {
+                closeExportMenu();
+            }
+        });
+
+        function triggerExport(format, mode) {
             const q = document.getElementById('searchInput').value.trim();
             const city = document.getElementById('filterCity').value;
+            const business_type = document.getElementById('filterType').value;
+            const website_status = document.getElementById('filterWebsiteStatus').value;
+            const outreach_status = document.getElementById('filterOutreach').value;
+            const deal_status = document.getElementById('filterDeal').value;
+            const response_status = document.getElementById('filterResponse').value;
             const ids = Array.from(selectedLeadIds).join(',');
-            const url = `/api/leads/export?mode=${mode}&q=${encodeURIComponent(q)}&city=${encodeURIComponent(city)}&ids=${encodeURIComponent(ids)}`;
-            window.open(url, '_blank');
+
+            const count = mode === 'selected' ? selectedLeadIds.size : totalLeads;
+            if (mode === 'selected' && !selectedLeadIds.size) {
+                showToast('Please select at least one lead to export', 'warning');
+                return;
+            }
+
+            const url = `/api/leads/export?format=${format}&mode=${mode}&q=${encodeURIComponent(q)}&city=${encodeURIComponent(city)}&business_type=${encodeURIComponent(business_type)}&website_status=${encodeURIComponent(website_status)}&outreach_status=${encodeURIComponent(outreach_status)}&deal_status=${encodeURIComponent(deal_status)}&response_status=${encodeURIComponent(response_status)}&ids=${encodeURIComponent(ids)}`;
+
+            window.location.href = url;
+            showToast(`✓ ${count} leads exported successfully as ${format.toUpperCase()}.`, 'success');
+            closeExportMenu();
+        }
+
+        // Backward compatibility
+        function exportCsv(mode) {
+            triggerExport('csv', mode);
+        }
+
+        // ── Bulk Website & Email Discovery ────────────────────────────
+        let bulkAnalysisAborted = false;
+        let bulkAnalysisActive = false;
+
+        function startBulkAnalysisModal() {
+            if (!selectedLeadIds.size) {
+                showToast('Please select at least one lead to analyze', 'warning');
+                return;
+            }
+            const modal = document.getElementById('bulkAnalysisModal');
+            modal.classList.add('active');
+
+            const total = selectedLeadIds.size;
+            document.getElementById('bulkProcessed').textContent = `0 / ${total}`;
+            document.getElementById('bulkEmailsFound').textContent = '0';
+            document.getElementById('bulkNoEmail').textContent = '0';
+            document.getElementById('bulkErrors').textContent = '0';
+            document.getElementById('bulkPercent').textContent = '0%';
+            document.getElementById('bulkProgressBar').style.width = '0%';
+            document.getElementById('bulkStatusMsg').textContent = `${total} leads selected for analysis.`;
+            document.getElementById('bulkLogBox').innerHTML = `<div>Ready. ${total} leads selected. Click "Start Discovery" to begin.</div>`;
+
+            document.getElementById('bulkStartBtn').style.display = 'inline-block';
+            document.getElementById('bulkStopBtn').style.display = 'none';
+            document.getElementById('bulkCloseBtn').disabled = false;
+        }
+
+        function closeBulkAnalysisModal() {
+            if (bulkAnalysisActive && !bulkAnalysisAborted) {
+                if (!confirm('Analysis is currently running. Close and stop?')) return;
+                stopBulkAnalysis();
+            }
+            document.getElementById('bulkAnalysisModal').classList.remove('active');
+        }
+
+        function stopBulkAnalysis() {
+            bulkAnalysisAborted = true;
+            document.getElementById('bulkStatusMsg').textContent = '⏹ Stopping analysis… Current item will finish.';
+            document.getElementById('bulkStopBtn').disabled = true;
+        }
+
+        async function runBulkAnalysis() {
+            bulkAnalysisAborted = false;
+            bulkAnalysisActive = true;
+
+            document.getElementById('bulkStartBtn').style.display = 'none';
+            document.getElementById('bulkStopBtn').style.display = 'inline-block';
+            document.getElementById('bulkStopBtn').disabled = false;
+            document.getElementById('bulkCloseBtn').disabled = true;
+
+            const ids = Array.from(selectedLeadIds);
+            const total = ids.length;
+            let processed = 0;
+            let emailsFound = 0;
+            let noEmail = 0;
+            let errors = 0;
+
+            const logBox = document.getElementById('bulkLogBox');
+            logBox.innerHTML = `<div>🚀 Starting discovery for ${total} leads…</div>`;
+
+            for (const leadId of ids) {
+                if (bulkAnalysisAborted) {
+                    logBox.innerHTML = `<div>⏹ Analysis stopped by user. Processed ${processed} leads.</div>` + logBox.innerHTML;
+                    break;
+                }
+
+                // Find lead info if in current page cache or fetch
+                const cached = currentLeads.find(l => l.lead_id === leadId);
+                const bizName = cached ? cached.business_name : leadId;
+                document.getElementById('bulkStatusMsg').textContent = `Analyzing: ${bizName}…`;
+
+                try {
+                    const res = await api.analyzeLeadWebsite(leadId);
+                    processed++;
+                    const percent = Math.round((processed / total) * 100);
+                    document.getElementById('bulkProcessed').textContent = `${processed} / ${total}`;
+                    document.getElementById('bulkPercent').textContent = `${percent}%`;
+                    document.getElementById('bulkProgressBar').style.width = `${percent}%`;
+
+                    if (res.error) {
+                        errors++;
+                        document.getElementById('bulkErrors').textContent = errors;
+                        logBox.innerHTML = `<div style="color:#f87171;">✕ ${bizName} (${leadId}): ${res.error}</div>` + logBox.innerHTML;
+                    } else if (res.primary_email || (res.emails && res.emails.length > 0)) {
+                        emailsFound++;
+                        const discovered = res.primary_email || res.emails[0];
+                        document.getElementById('bulkEmailsFound').textContent = emailsFound;
+                        logBox.innerHTML = `<div style="color:#4ade80;">✓ ${bizName}: Discovered ${discovered} [${res.website_status}]</div>` + logBox.innerHTML;
+                    } else {
+                        noEmail++;
+                        document.getElementById('bulkNoEmail').textContent = noEmail;
+                        logBox.innerHTML = `<div style="color:#94a3b8;">— ${bizName}: No public email found [${res.website_status}]</div>` + logBox.innerHTML;
+                    }
+                } catch (err) {
+                    processed++;
+                    errors++;
+                    document.getElementById('bulkProcessed').textContent = `${processed} / ${total}`;
+                    document.getElementById('bulkErrors').textContent = errors;
+                    logBox.innerHTML = `<div style="color:#f87171;">✕ ${bizName}: ${err.message}</div>` + logBox.innerHTML;
+                }
+            }
+
+            bulkAnalysisActive = false;
+            document.getElementById('bulkStopBtn').style.display = 'none';
+            document.getElementById('bulkCloseBtn').disabled = false;
+            document.getElementById('bulkStatusMsg').textContent = bulkAnalysisAborted 
+                ? `Stopped: ${processed} of ${total} processed.` 
+                : `✓ Complete: ${processed} leads analyzed. ${emailsFound} emails discovered.`;
+
+            showToast(`Analysis complete: ${emailsFound} emails found across ${processed} leads`, 'success');
+            loadLeads();
+            loadStats();
         }
 
         init();

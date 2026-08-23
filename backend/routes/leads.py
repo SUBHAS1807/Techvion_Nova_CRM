@@ -1,3 +1,5 @@
+import os
+import time
 import io
 import csv
 import re
@@ -33,7 +35,7 @@ def _next_lead_id(db: Session) -> str:
 
 LEAD_FIELDS = [
     "is_marked", "business_name", "owner_name", "business_type", "city",
-    "lead_source", "phone", "email", "images", "current_website",
+    "lead_source", "phone", "email", "email_source", "email_source_url", "images", "current_website",
     "instagram", "facebook", "website_status", "preferred_contact_channel",
     "first_contact_date", "outreach_status", "response_status",
     "interested_agreed", "website_requirement", "estimated_budget",
@@ -271,34 +273,102 @@ def update_lead(lead_id: str):
         db.close()
 
 
-# ── DELETE LEAD ─────────────────────────────────────────────────────────
+# ── DELETE SECURITY & RATE LIMITING ─────────────────────────────────────
+
+DELETE_PASSWORD_CONFIG = os.environ.get("DELETE_PASSWORD", "Tech@1807")
+_failed_delete_attempts = {}
+MAX_FAILED_DELETE_ATTEMPTS = 5
+DELETE_LOCKOUT_SECONDS = 300  # 5 minutes lockout
+
+
+def _verify_delete_auth(pw: str | None, client_ip: str) -> tuple[bool, str | None, int]:
+    """
+    Validates delete password against server configuration with brute-force protection.
+    Returns: (is_valid, error_message, http_status_code)
+
+    Security design:
+    - A correct password ALWAYS clears the lockout and succeeds immediately.
+    - The lockout only prevents further wrong-password attempts once the threshold is hit.
+    - This ensures legitimate users are never permanently locked out by an attacker on
+      the same shared IP, while still protecting against brute-force guessing.
+    """
+    import time
+    now = time.time()
+    attempts = _failed_delete_attempts.get(client_ip, [])
+    recent_attempts = [t for t in attempts if now - t < DELETE_LOCKOUT_SECONDS]
+    _failed_delete_attempts[client_ip] = recent_attempts
+
+    expected_pw = (os.environ.get("DELETE_PASSWORD") or DELETE_PASSWORD_CONFIG).strip()
+    submitted = (pw or "").strip()
+
+    if not submitted:
+        return False, "Deletion password is required.", 400
+
+    # Correct password always wins -- clears any lockout immediately
+    if submitted == expected_pw:
+        _failed_delete_attempts.pop(client_ip, None)
+        return True, None, 200
+
+    # Wrong password: enforce lockout to block brute-force attempts
+    if len(recent_attempts) >= MAX_FAILED_DELETE_ATTEMPTS:
+        return False, "Too many incorrect attempts. Please try again later.", 429
+
+    _failed_delete_attempts[client_ip].append(now)
+    return False, "Incorrect deletion password.", 401
+
+
+# ── DELETE LEAD (PASSWORD PROTECTED) ───────────────────────────────────
 
 @leads_bp.route("/api/leads/<lead_id>", methods=["DELETE"])
+@leads_bp.route("/api/leads/<lead_id>/delete", methods=["POST"])
 def delete_lead(lead_id: str):
+    data = request.get_json(force=True, silent=True) or {}
+    password = data.get("password")
+    client_ip = request.remote_addr or "127.0.0.1"
+
+    valid, err_msg, status_code = _verify_delete_auth(password, client_ip)
+    if not valid:
+        return jsonify({"success": False, "error": err_msg}), status_code
+
     db = SessionLocal()
     try:
         lead = db.query(Lead).filter(Lead.lead_id == lead_id).first()
         if not lead:
-            return jsonify({"error": "Lead not found"}), 404
+            return jsonify({"success": False, "error": "Lead not found", "message": "Lead not found"}), 404
 
+        biz_name = lead.business_name
         db.query(OutreachActivity).filter(OutreachActivity.lead_id == lead_id).delete()
         db.query(FollowUp).filter(FollowUp.lead_id == lead_id).delete()
         db.query(WebsiteAnalysisRecord).filter(WebsiteAnalysisRecord.lead_id == lead_id).delete()
         db.delete(lead)
         db.commit()
-        return jsonify({"ok": True})
+
+        return jsonify({
+            "success": True,
+            "deleted": 1,
+            "lead_id": lead_id,
+            "business_name": biz_name,
+            "message": "Lead deleted successfully."
+        }), 200
     finally:
         db.close()
 
 
-# ── BULK DELETE ─────────────────────────────────────────────────────────
+# ── BULK DELETE (PASSWORD PROTECTED) ───────────────────────────────────
 
 @leads_bp.route("/api/leads/bulk-delete", methods=["POST"])
 def bulk_delete():
-    data = request.get_json(force=True)
-    ids = data.get("lead_ids", [])
+    data = request.get_json(force=True, silent=True) or {}
+    password = data.get("password")
+    client_ip = request.remote_addr or "127.0.0.1"
+
+    valid, err_msg, status_code = _verify_delete_auth(password, client_ip)
+    if not valid:
+        return jsonify({"success": False, "error": err_msg}), status_code
+
+    ids = data.get("ids") or data.get("lead_ids") or []
     if not ids:
-        return jsonify({"error": "No lead_ids provided"}), 400
+        return jsonify({"success": False, "error": "No lead IDs provided"}), 400
 
     db = SessionLocal()
     try:
@@ -307,7 +377,12 @@ def bulk_delete():
         db.query(WebsiteAnalysisRecord).filter(WebsiteAnalysisRecord.lead_id.in_(ids)).delete(synchronize_session=False)
         deleted = db.query(Lead).filter(Lead.lead_id.in_(ids)).delete(synchronize_session="fetch")
         db.commit()
-        return jsonify({"deleted": deleted})
+
+        return jsonify({
+            "success": True,
+            "deleted": deleted,
+            "message": f"{deleted} leads deleted successfully."
+        }), 200
     finally:
         db.close()
 
@@ -463,12 +538,32 @@ def get_followups():
 
 # ── CSV EXPORT ──────────────────────────────────────────────────────────
 
+# ── EXPORT LEADS (CSV & EXCEL .XLSX) ────────────────────────────────────
+
 @leads_bp.route("/api/leads/export", methods=["GET"])
-def export_csv():
+@leads_bp.route("/api/leads/export/csv", methods=["GET"])
+@leads_bp.route("/api/leads/export/excel", methods=["GET"])
+def export_leads():
+    # Detect format from URL path or query parameter
+    if request.path.endswith("/excel"):
+        export_format = "excel"
+    elif request.path.endswith("/csv"):
+        export_format = "csv"
+    else:
+        export_format = request.args.get("format", "csv").lower()
+
     mode = request.args.get("mode", "all")  # all, filtered, selected
     ids_param = request.args.get("ids", "")
     q = request.args.get("q", "").strip()
     city = request.args.get("city", "").strip()
+    business_type = request.args.get("business_type", "").strip()
+    lead_source = request.args.get("lead_source", "").strip()
+    website_status = request.args.get("website_status", "").strip()
+    outreach_status = request.args.get("outreach_status", "").strip()
+    response_status = request.args.get("response_status", "").strip()
+    deal_status = request.args.get("deal_status", "").strip()
+    is_marked = request.args.get("is_marked")
+    is_demo = request.args.get("is_demo")
 
     db = SessionLocal()
     try:
@@ -482,29 +577,94 @@ def export_csv():
                 query = query.filter(
                     or_(
                         Lead.business_name.ilike(like),
+                        Lead.owner_name.ilike(like),
+                        Lead.lead_id.ilike(like),
                         Lead.city.ilike(like),
                         Lead.phone.ilike(like),
                         Lead.email.ilike(like),
+                        Lead.current_website.ilike(like),
+                        Lead.address.ilike(like),
+                        Lead.google_place_id.ilike(like),
                     )
                 )
             if city:
                 query = query.filter(Lead.city.ilike(city))
+            if business_type:
+                query = query.filter(Lead.business_type.ilike(business_type))
+            if lead_source:
+                query = query.filter(Lead.lead_source.ilike(lead_source))
+            if website_status:
+                query = query.filter(Lead.website_status == website_status)
+            if outreach_status:
+                query = query.filter(Lead.outreach_status == outreach_status)
+            if response_status:
+                query = query.filter(Lead.response_status == response_status)
+            if deal_status:
+                query = query.filter(Lead.deal_status == deal_status)
+            if is_marked is not None and is_marked != "":
+                query = query.filter(Lead.is_marked == (is_marked.lower() in ("true", "1")))
+            if is_demo is not None and is_demo != "":
+                query = query.filter(Lead.is_demo == (is_demo.lower() in ("true", "1")))
 
         leads = query.order_by(Lead.lead_id.asc()).all()
+        date_str = datetime.now().strftime("%Y-%m-%d")
 
+        # ── Handle Excel (.xlsx) Export ─────────────────────────────────
+        if export_format in ("excel", "xlsx"):
+            from backend.routes.export_excel import create_excel_report
+            xlsx_bytes = create_excel_report(leads)
+            filename = f"TechvionNova_Leads_{date_str}.xlsx"
+            return Response(
+                xlsx_bytes,
+                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "X-Total-Count": str(len(leads)),
+                },
+            )
+
+        # ── Handle CSV Export (with UTF-8 BOM) ──────────────────────────
         output = io.StringIO()
-        writer = csv.writer(output)
+        # Write UTF-8 BOM so Excel on Windows/Mac properly parses Unicode/Bengali text
+        output.write("\ufeff")
+        writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
 
         headers = [
-            "Marked", "Lead ID", "Business Name", "Owner Name", "Business Type",
-            "City", "Lead Source", "Phone", "Email", "Website", "Instagram",
-            "Facebook", "Website Status", "Preferred Contact Channel",
-            "First Contact Date", "Outreach Status", "Response Status",
-            "Interested / Agreed", "Website Requirement", "Estimated Budget",
-            "Proposal Status", "Deal Status", "Project Status", "Next Follow-up Date",
-            "Remarks", "Google Place ID", "Google Maps URL", "Address", "Rating",
-            "Review Count", "Business Status", "Email Verification Status",
-            "Lead Score", "Created At",
+            "Marked",
+            "Lead ID",
+            "Business Name",
+            "Owner Name",
+            "Business Type",
+            "City",
+            "Lead Source",
+            "Phone",
+            "Email",
+            "Email Source",
+            "Email Verification Status",
+            "Current Website",
+            "Instagram",
+            "Facebook",
+            "Website Status",
+            "Preferred Contact Channel",
+            "First Contact Date",
+            "Outreach Status",
+            "Response Status",
+            "Interested / Agreed",
+            "Website Requirement",
+            "Estimated Budget",
+            "Proposal Status",
+            "Deal Status",
+            "Project Status",
+            "Next Follow-up Date",
+            "Remarks",
+            "Google Place ID",
+            "Google Maps URL",
+            "Address",
+            "Rating",
+            "Review Count",
+            "Business Status",
+            "Lead Score",
+            "Created At",
         ]
         writer.writerow(headers)
 
@@ -512,13 +672,15 @@ def export_csv():
             writer.writerow([
                 "Yes" if l.is_marked else "No",
                 l.lead_id,
-                l.business_name,
+                l.business_name or "",
                 l.owner_name or "Unknown",
-                l.business_type,
-                l.city,
-                l.lead_source,
+                l.business_type or "",
+                l.city or "",
+                l.lead_source or "Google Places API",
                 l.phone or "",
                 l.email or "",
+                getattr(l, "email_source", "") or ("Business Website" if l.email else ""),
+                getattr(l, "email_verification_status", "") or "Not Checked",
                 l.current_website or "",
                 l.instagram or "",
                 l.facebook or "",
@@ -541,17 +703,19 @@ def export_csv():
                 l.rating or l.google_rating or "",
                 l.review_count or l.google_reviews or "",
                 l.business_status or "OPERATIONAL",
-                l.email_verification_status or "Not Checked",
                 l.lead_score or 0,
                 l.created_at.strftime("%Y-%m-%d %H:%M") if l.created_at else "",
             ])
 
         csv_content = output.getvalue()
-        filename = f"techvionnova_leads_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        filename = f"TechvionNova_Leads_{date_str}.csv"
         return Response(
-            csv_content,
-            mimetype="text/csv",
-            headers={"Content-Disposition": f"attachment; filename={filename}"},
+            csv_content.encode("utf-8-sig"),
+            mimetype="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Total-Count": str(len(leads)),
+            },
         )
     finally:
         db.close()

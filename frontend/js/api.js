@@ -145,20 +145,26 @@ const api = {
         return res.json();
     },
 
-    async deleteLead(id) {
-        const res = await fetch(`${API_BASE}/api/leads/${id}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error(`Delete failed: ${res.statusText}`);
-        return res.json();
+    async deleteLead(id, password) {
+        const res = await fetch(`${API_BASE}/api/leads/${id}/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: password || '' }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || data.message || `Delete failed: ${res.statusText}`);
+        return data;
     },
 
-    async bulkDelete(ids) {
+    async bulkDelete(ids, password) {
         const res = await fetch(`${API_BASE}/api/leads/bulk-delete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lead_ids: ids }),
+            body: JSON.stringify({ ids, lead_ids: ids, password: password || '' }),
         });
-        if (!res.ok) throw new Error(`Bulk delete failed: ${res.statusText}`);
-        return res.json();
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || data.message || `Bulk delete failed: ${res.statusText}`);
+        return data;
     },
 
     async bulkAction(ids, action, value) {
@@ -210,6 +216,15 @@ const api = {
 
     async analyzeLeadWebsite(leadId) {
         const res = await fetch(`${API_BASE}/api/analyze/lead/${leadId}`, { method: 'POST' });
+        return res.json();
+    },
+
+    async analyzeBatch(leadIds) {
+        const res = await fetch(`${API_BASE}/api/analyze/bulk`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lead_ids: leadIds }),
+        });
         return res.json();
     },
 };

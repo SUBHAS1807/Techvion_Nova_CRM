@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Website Analyzer & Contact Detection – TechvionNova CRM">
     <title>Website Analyzer | TechvionNova CRM</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="css/style.css">
     <style>
         .analyzer-wrap { max-width: 900px; }
@@ -93,8 +94,8 @@
 
                 const scoreBadge = leadScoreBadge(r.lead_score || 0);
                 const emailsList = r.emails && r.emails.length 
-                    ? r.emails.map(e => `<span class="badge badge-good" style="font-size:12px; font-family:var(--font-mono);">${esc(e)}</span>`).join(' ') 
-                    : '<span style="color:var(--text-muted); font-size:12.5px;">No public email found</span>';
+                    ? r.emails.map(e => `<span class="badge badge-good" style="font-size:12px; font-family:var(--font-mono);">✓ ${esc(e)}</span>`).join(' ') 
+                    : '<span style="color:var(--text-muted); font-size:12.5px; font-style:italic;">— No public business email found</span>';
                 
                 const phonesList = r.phones && r.phones.length 
                     ? r.phones.map(p => `<span class="badge badge-unknown" style="font-size:12px; font-family:var(--font-mono);">${esc(p)}</span>`).join(' ') 

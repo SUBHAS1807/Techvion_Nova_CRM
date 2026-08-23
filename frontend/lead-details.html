@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Lead Details & Website Analysis – TechvionNova CRM">
     <title>Lead Details | TechvionNova CRM</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="css/style.css">
     <style>
         .detail-layout {
@@ -77,11 +78,14 @@
                             <div class="drawer-grid">
                                 <div class="detail-field"><span class="detail-label">Phone</span><span class="detail-val" id="d_phone">—</span></div>
                                 <div class="detail-field"><span class="detail-label">Email</span><span class="detail-val" id="d_email">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Email Source</span><span class="detail-val" id="d_email_source">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Email Verification</span><span class="detail-val" id="d_email_verif">—</span></div>
                                 <div class="detail-field"><span class="detail-label">Instagram</span><span class="detail-val" id="d_instagram">—</span></div>
                                 <div class="detail-field"><span class="detail-label">Facebook</span><span class="detail-val" id="d_facebook">—</span></div>
                                 <div class="drawer-item-full detail-field"><span class="detail-label">Website URL</span><span class="detail-val" id="d_website">—</span></div>
                                 <div class="detail-field"><span class="detail-label">Website Status</span><span class="detail-val" id="d_web_status">—</span></div>
-                                <div class="detail-field"><span class="detail-label">Email Verification</span><span class="detail-val" id="d_email_verif">—</span></div>
+                                <div class="detail-field"><span class="detail-label">SSL Certificate</span><span class="detail-val" id="d_ssl">—</span></div>
+                                <div class="drawer-item-full detail-field" id="d_email_source_url_wrap" style="display:none;"><span class="detail-label">Email Discovered On</span><span class="detail-val" id="d_email_source_url">—</span></div>
                             </div>
                             <div id="analysisResultCard" style="display:none; margin-top:14px; background:var(--surface-alt); border:1px solid var(--border); border-radius:var(--radius-md); padding:14px; font-size:12.5px;"></div>
                         </div>
@@ -235,6 +239,45 @@
         </div>
     </div>
 
+    <!-- ══════ Password-Protected Delete Confirmation Modal ══════ -->
+    <div class="modal-overlay" id="deleteConfirmModal">
+        <div class="modal" style="max-width: 440px;">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+                <h3 style="color: var(--danger); display: flex; align-items: center; gap: 8px; font-size: 16px; margin: 0;">
+                    <span>🗑</span> <span>Delete Lead?</span>
+                </h3>
+                <button class="modal-close" onclick="closeDeleteModal()">✕</button>
+            </div>
+            <div class="modal-body" style="padding-top: 16px;">
+                <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">
+                    You are about to permanently delete this lead:
+                </p>
+
+                <!-- Lead details card -->
+                <div style="background: var(--surface-alt); border: 1px solid var(--border); border-left: 3px solid var(--danger); border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 14px;">
+                    <div id="delLeadName" style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 2px;">Business Name</div>
+                    <div id="delLeadId" style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">TVN-000000</div>
+                </div>
+
+                <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius-md); padding: 9px 12px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #b91c1c;">
+                    <span style="font-size: 14px;">⚠</span>
+                    <span><strong>Warning:</strong> This action cannot be undone.</span>
+                </div>
+
+                <!-- Password Input -->
+                <div class="form-group" style="margin-bottom: 6px;">
+                    <label class="form-label" style="font-weight: 600; font-size: 12.5px;">Enter Deletion Password <span style="color:var(--danger);">*</span></label>
+                    <input type="password" id="delPasswordInput" class="form-input" placeholder="••••••••••••••" autocomplete="off" onkeydown="if(event.key==='Enter') confirmDeleteCurrentLead()">
+                    <div id="delPasswordError" style="color: var(--danger); font-size: 12px; margin-top: 6px; display: none; font-weight: 600;"></div>
+                </div>
+            </div>
+            <div class="modal-footer" style="gap: 10px; border-top: 1px solid var(--border); padding-top: 12px;">
+                <button class="btn btn-secondary" onclick="closeDeleteModal()" id="delCancelBtn">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmDeleteCurrentLead()" id="delConfirmBtn" style="background: var(--danger); color: #fff; border-color: var(--danger);">Confirm Delete</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/api.js"></script>
     <script>
         const urlParams = new URLSearchParams(window.location.search);
@@ -281,8 +324,18 @@
             document.getElementById('d_status').textContent = l.business_status || 'OPERATIONAL';
 
             document.getElementById('d_phone').textContent = l.phone || '—';
-            document.getElementById('d_email').textContent = l.email || '—';
+            document.getElementById('d_email').innerHTML = l.email 
+                ? `<a href="mailto:${esc(l.email)}" style="color:var(--primary); font-weight:700; text-decoration:none;">${esc(l.email)}</a>` 
+                : '<span style="color:var(--text-muted); font-style:italic;">— No public business email found</span>';
+            document.getElementById('d_email_source').textContent = l.email_source || (l.email ? 'Business Website' : '—');
             document.getElementById('d_email_verif').textContent = l.email_verification_status || 'Not Checked';
+            document.getElementById('d_ssl').textContent = l.current_website && l.current_website.startsWith('https') ? '✓ Valid (HTTPS)' : '—';
+            if (l.email_source_url) {
+                document.getElementById('d_email_source_url_wrap').style.display = 'flex';
+                document.getElementById('d_email_source_url').innerHTML = `<a href="${l.email_source_url}" target="_blank" style="font-size:12px; color:var(--text-secondary);">${l.email_source_url} ↗</a>`;
+            } else {
+                document.getElementById('d_email_source_url_wrap').style.display = 'none';
+            }
 
             document.getElementById('d_website').innerHTML = l.current_website ? `<a href="${l.current_website}" target="_blank">${l.current_website} ↗</a>` : '<span style="color:var(--text-muted);">No Website</span>';
             document.getElementById('d_web_status').innerHTML = websiteStatusBadge(l.website_status);
@@ -348,12 +401,23 @@
                 renderLeadDetails();
                 loadTimeline();
 
+                const cleanDomain = currentLead.current_website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+                const emailDisplay = res.primary_email || (res.emails && res.emails.length ? res.emails[0] : null);
+
                 const aCard = document.getElementById('analysisResultCard');
                 aCard.style.display = 'block';
                 aCard.innerHTML = `
-                    <strong>Analysis Summary:</strong><br>
-                    Status: ${res.website_status} · SSL: ${res.has_ssl ? 'Valid (HTTPS)' : 'Missing'} · Speed: ${res.load_time_seconds}s<br>
-                    Emails Discovered: ${res.emails && res.emails.length ? res.emails.join(', ') : 'None'}
+                    <div style="font-weight:700; font-size:13px; margin-bottom:8px; color:var(--text-primary);">Website Analysis Result</div>
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:8px; font-size:12px;">
+                        <div><strong style="color:var(--text-secondary);">Website:</strong> ${esc(cleanDomain)}</div>
+                        <div><strong style="color:var(--text-secondary);">Status:</strong> ${res.error ? '✕ ' + res.error : '✓ Website Accessible (' + res.website_status + ')'}</div>
+                        <div><strong style="color:var(--text-secondary);">Email:</strong> ${emailDisplay ? '✓ ' + esc(emailDisplay) : '<span style="color:var(--text-muted);">— No public business email found</span>'}</div>
+                        ${emailDisplay ? `<div><strong style="color:var(--text-secondary);">Source:</strong> Business Website</div>` : ''}
+                        ${res.email_source_url ? `<div><strong style="color:var(--text-secondary);">Source URL:</strong> <a href="${res.email_source_url}" target="_blank">${res.email_source_url} ↗</a></div>` : ''}
+                        <div><strong style="color:var(--text-secondary);">Phone:</strong> ${res.phones && res.phones.length ? '✓ ' + res.phones.join(', ') : '—'}</div>
+                        <div><strong style="color:var(--text-secondary);">Instagram:</strong> ${res.socials && res.socials.instagram ? '✓ Found' : '— Not found'}</div>
+                        <div><strong style="color:var(--text-secondary);">Facebook:</strong> ${res.socials && res.socials.facebook ? '✓ Found' : '— Not found'}</div>
+                    </div>
                 `;
             } catch (e) {
                 showToast(e.message, 'error');
@@ -434,14 +498,58 @@
             }
         }
 
-        async function deleteCurrentLead() {
-            if (!confirm(`Delete lead ${leadId} permanently?`)) return;
+        // ── Password-Protected Deletion Logic ─────────────────────────
+
+        function deleteCurrentLead() {
+            if (!currentLead) return;
+            document.getElementById('delLeadName').textContent = `☕ ${currentLead.business_name || 'Lead'}`;
+            document.getElementById('delLeadId').textContent = `Lead ID: ${leadId}`;
+            document.getElementById('delPasswordInput').value = '';
+            document.getElementById('delPasswordError').style.display = 'none';
+            document.getElementById('delPasswordError').textContent = '';
+            document.getElementById('delConfirmBtn').disabled = false;
+            document.getElementById('delConfirmBtn').textContent = 'Confirm Delete';
+
+            document.getElementById('deleteConfirmModal').classList.add('active');
+            setTimeout(() => document.getElementById('delPasswordInput').focus(), 50);
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteConfirmModal').classList.remove('active');
+            document.getElementById('delPasswordInput').value = '';
+            document.getElementById('delPasswordError').style.display = 'none';
+        }
+
+        async function confirmDeleteCurrentLead() {
+            const pw = document.getElementById('delPasswordInput').value.trim();
+            const errEl = document.getElementById('delPasswordError');
+            const btn = document.getElementById('delConfirmBtn');
+
+            if (!pw) {
+                errEl.textContent = '✕ Please enter the deletion password.';
+                errEl.style.display = 'block';
+                document.getElementById('delPasswordInput').focus();
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner spinner-dark" style="width:14px;height:14px;"></span> Deleting…';
+            errEl.style.display = 'none';
+
             try {
-                await api.deleteLead(leadId);
-                showToast('Lead deleted', 'success');
-                window.location.href = 'leads.html';
-            } catch (e) {
-                showToast(e.message, 'error');
+                await api.deleteLead(leadId, pw);
+                closeDeleteModal();
+                showToast('✓ Lead deleted successfully.', 'success');
+                setTimeout(() => {
+                    window.location.href = 'leads.html';
+                }, 400);
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = 'Confirm Delete';
+                errEl.textContent = `✕ ${err.message || 'Incorrect deletion password.'}`;
+                errEl.style.display = 'block';
+                document.getElementById('delPasswordInput').value = '';
+                document.getElementById('delPasswordInput').focus();
             }
         }
 

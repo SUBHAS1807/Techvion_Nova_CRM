@@ -4,3 +4,4 @@ sqlalchemy==2.0.30
 requests==2.34.2
 beautifulsoup4==4.15.0
 python-dotenv==1.2.3
+openpyxl==3.1.5

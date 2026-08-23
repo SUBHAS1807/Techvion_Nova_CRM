@@ -42,6 +42,8 @@ def run_migrations():
                 "business_status": "ALTER TABLE leads ADD COLUMN business_status VARCHAR(50) DEFAULT 'OPERATIONAL'",
                 "address": "ALTER TABLE leads ADD COLUMN address VARCHAR(500)",
                 "is_demo": "ALTER TABLE leads ADD COLUMN is_demo BOOLEAN DEFAULT 0",
+                "email_source": "ALTER TABLE leads ADD COLUMN email_source VARCHAR(100)",
+                "email_source_url": "ALTER TABLE leads ADD COLUMN email_source_url VARCHAR(500)",
             }
             for col, ddl in migrations.items():
                 if col not in existing_cols:

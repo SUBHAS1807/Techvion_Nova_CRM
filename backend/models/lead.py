@@ -122,8 +122,12 @@ class Lead(Base):
     # Business Status (e.g. OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY)
     business_status = Column(String(50), nullable=True)
 
-    # Email Verification Status: Not Checked, Valid, Invalid, Unknown
+    # Email Verification Status: Not Checked, Valid Format, Invalid Format, Unknown
     email_verification_status = Column(String(30), default="Not Checked")
+
+    # Email Source & URL: Google Places, Business Website, Manual, CSV, Other
+    email_source = Column(String(100), nullable=True)
+    email_source_url = Column(String(500), nullable=True)
 
     # Website Analysis (JSON blob)
     website_analysis = Column(Text, nullable=True)
@@ -154,6 +158,8 @@ class Lead(Base):
             "lead_source": self.lead_source,
             "phone": self.phone or "",
             "email": self.email or "",
+            "email_source": self.email_source or "",
+            "email_source_url": self.email_source_url or "",
             "images": self.images,
             "current_website": self.current_website or "",
             "instagram": self.instagram or "",
