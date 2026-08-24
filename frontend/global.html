@@ -26,6 +26,25 @@
         .pill-notan      { background:#F8FAFC; color:#94A3B8; border:1px dashed #CBD5E1; }
         .pill-error      { background:#FEE2E2; color:#991B1B; }
         .worldwide-banner { display:flex; align-items:center; gap:10px; background:linear-gradient(90deg,#EFF6FF,#ECFDF5); border:1px solid #BFDBFE; border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:16px; }
+        /* Website-status quick filter chips */
+        .ws-chips { display:flex; gap:8px; flex-wrap:wrap; }
+        .ws-chip { cursor:pointer; user-select:none; border:1.5px solid var(--border,#E2E8F0); background:var(--surface-alt,#F8FAFC); color:var(--text-secondary); border-radius:999px; padding:6px 14px; font-size:12.5px; font-weight:600; transition:all .15s ease; }
+        .ws-chip:hover { border-color:#93C5FD; }
+        .ws-chip.active { background:#2563eb; border-color:#2563eb; color:#fff; box-shadow:0 2px 6px rgba(37,99,235,.35); }
+        .ws-section { border:1.5px dashed #93C5FD; background:linear-gradient(180deg,#EFF6FF33,transparent); border-radius:12px; padding:12px 14px; grid-column: span 4; }
+        @media (max-width:900px){ .ws-section { grid-column: span 2; } }
+        .ws-select-wrap { position:relative; }
+        .ws-select-wrap select { font-weight:700; border-width:2px; border-color:#60A5FA; background:#fff; }
+        /* Website-status pills */
+        .pill-ws-no    { background:#FEE2E2; color:#B91C1C; }   /* 🚫 No Website = opportunity */
+        .pill-ws-yes   { background:#DCFCE7; color:#166534; }   /* 🌐 Has Website */
+        .pill-ws-down  { background:#FFEDD5; color:#9A3412; }   /* ⚠ Inaccessible */
+        .pill-ws-unk   { background:#F1F5F9; color:#64748B; }   /* ❓ Unknown */
+        .lead-pill-qualified { background:#DCFCE7; color:#166534; }
+        .lead-pill-target    { background:#FEF3C7; color:#92400E; }
+        .lead-pill-skipped   { background:#F1F5F9; color:#475569; }
+        .lead-pill-pending   { background:#DBEAFE; color:#1E40AF; }
+        .campaign-banner { display:flex; align-items:center; gap:10px; background:linear-gradient(90deg,#FEF3C7,#FFEDD5); border:1px solid #FCD34D; border-radius:10px; padding:8px 14px; font-size:12.5px; margin-bottom:12px; display:none; }
     </style>
 </head>
 <body>
@@ -37,7 +56,10 @@
 
             <main class="content-body">
                 <div class="worldwide-banner">
-                    🌍 <div><b>Worldwide Lead Collection</b> — discover businesses in any country, verify their public email, and save <b>ONLY businesses with real emails</b> as leads. Rule: NO EMAIL = NO LEAD.</div>
+                    🌍 <div><b>Worldwide Lead Collection</b> — discover businesses in any country, classify their website status, verify public emails, and save <b>ONLY businesses with real emails</b> as leads. Rule: NO EMAIL = NO LEAD.</div>
+                </div>
+                <div class="campaign-banner" id="campaignBanner">
+                    🎯 <div><b>Website Opportunity Campaign active</b> — targeting businesses <b>without a website</b>. A no-website business with a public email = prime website-development prospect.</div>
                 </div>
 
                 <!-- Configuration Card -->
@@ -74,6 +96,40 @@
                             <label for="keywordInput">Custom Keyword (overrides category)</label>
                             <input type="text" id="keywordInput" placeholder='e.g. "wedding photographer"'>
                         </div>
+                        <div class="ws-section">
+                            <label style="font-size:13px; margin-bottom:6px;">🌐 Website Status Filter <span style="font-weight:400;color:var(--text-muted);">— what should we target &amp; keep?</span></label>
+                            <div class="ws-chips" style="margin-bottom:10px;">
+                                <span class="ws-chip active" data-ws="ALL" onclick="setWebsiteStatus('ALL')">All Businesses</span>
+                                <span class="ws-chip" data-ws="NO_WEBSITE" onclick="setWebsiteStatus('NO_WEBSITE')">🚫 No Website</span>
+                                <span class="ws-chip" data-ws="HAS_WEBSITE" onclick="setWebsiteStatus('HAS_WEBSITE')">🌐 Has Website</span>
+                                <span class="ws-chip" data-ws="WEBSITE_INACCESSIBLE" onclick="setWebsiteStatus('WEBSITE_INACCESSIBLE')">⚠ Website Inaccessible</span>
+                            </div>
+                            <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap:12px;">
+                                <div class="form-group">
+                                    <div class="ws-select-wrap">
+                                        <label for="websiteStatusSelect" style="font-weight:700;color:#1D4ED8;">Website Status (precise)</label>
+                                        <select id="websiteStatusSelect" onchange="syncChipsFromSelect()">
+                                            <option value="ALL" selected>All Businesses</option>
+                                            <option value="NO_WEBSITE">🚫 No Website — website opportunity</option>
+                                            <option value="HAS_WEBSITE">🌐 Has Website</option>
+                                            <option value="WEBSITE_INACCESSIBLE">⚠ Website Inaccessible (site down/blocked)</option>
+                                            <option value="WEBSITE_UNKNOWN">❓ Unknown</option>
+                                        </select>
+                                    </div>
+                                    <small style="color:var(--text-muted); font-size:11px;">A failed site check is NEVER counted as "no website" — that's ⚠ Inaccessible.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:4px;">
+                                        <input type="checkbox" id="campaignMode" style="width:auto;" onchange="onCampaignToggle()">
+                                        <b>🎯 Website Opportunity Leads</b> <small style="color:var(--text-muted);">(no-website prospects only)</small>
+                                    </label>
+                                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:8px;">
+                                        <input type="checkbox" id="emailRequired" checked disabled style="width:auto;">
+                                        <b>Email Required</b> <small style="color:var(--text-muted);">(always on — NO EMAIL = NO LEAD)</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                         <div class="form-group">
                             <label for="radiusInput">Radius km (optional)</label>
                             <input type="number" id="radiusInput" min="1" max="50000" placeholder="—">
@@ -83,12 +139,13 @@
                             <select id="limitSelect">
                                 <option value="20" selected>20</option>
                                 <option value="40">40</option>
-                                <option value="60">60 (max)</option>
+                                <option value="60">60</option>
+                                <option value="100">100 (max)</option>
                             </select>
                         </div>
                     </div>
                     <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
-                        <button type="button" class="btn btn-primary" id="startBtn" onclick="startJob()">🚀 Start Collection</button>
+                        <button type="button" class="btn btn-primary" id="startBtn" onclick="startJob()">🌎 Search Worldwide</button>
                         <button type="button" class="btn btn-secondary" id="pauseBtn" onclick="jobAction('pause')" disabled>⏸ Pause</button>
                         <button type="button" class="btn btn-secondary" id="resumeBtn" onclick="jobAction('resume')" disabled>▶ Resume</button>
                         <button type="button" class="btn btn-danger btn-sm" id="stopBtn" onclick="jobAction('stop')" disabled style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;">⏹ Stop</button>
@@ -117,11 +174,31 @@
                     <div class="log-box" id="liveLog" style="margin-top:14px;"><div class="log-line">// waiting for activity…</div></div>
                 </div>
 
+                <!-- Website Opportunity Stats -->
+                <div class="card" id="oppStatsCard">
+                    <div class="card-header">
+                        <div class="card-title">🎯 Website Opportunity Stats</div>
+                        <small style="color:var(--text-muted);">Live from discovered_businesses — real data only</small>
+                    </div>
+                    <div class="globe-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px,1fr));">
+                        <div class="globe-stat"><b id="s_no_website" style="color:#DC2626;">0</b><span>🚫 Businesses Without Website</span></div>
+                        <div class="globe-stat"><b id="s_emails_no_ws" style="color:#D97706;">0</b><span>📧 Public Emails Found · No Website</span></div>
+                        <div class="globe-stat"><b id="s_opportunity" style="color:#059669;">0</b><span>🎯 Website Opportunity Leads</span></div>
+                    </div>
+                </div>
+
                 <!-- Discoveries -->
                 <div class="card">
                     <div class="card-header">
                         <div class="card-title">🔎 Discovered Businesses</div>
                         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                            <select id="wsFilter" onchange="onResultsWsFilter()" style="padding:7px 10px; border-radius:8px; border:1px solid var(--border,#E2E8F0); font-size:12.5px; font-weight:700;">
+                                <option value="">Website Status: All</option>
+                                <option value="NO_WEBSITE">🚫 No Website</option>
+                                <option value="HAS_WEBSITE">🌐 Has Website</option>
+                                <option value="WEBSITE_INACCESSIBLE">⚠ Inaccessible</option>
+                                <option value="WEBSITE_UNKNOWN">❓ Unknown</option>
+                            </select>
                             <select id="statusFilter" onchange="loadDiscoveries()" style="padding:7px 10px; border-radius:8px; border:1px solid var(--border,#E2E8F0); font-size:12.5px;">
                                 <option value="">All statuses</option>
                                 <option value="EMAIL_FOUND">✓ Email Found</option>
@@ -140,11 +217,11 @@
                             <thead>
                                 <tr>
                                     <th>Business</th>
-                                    <th>Location</th>
-                                    <th>Website</th>
-                                    <th>Email Status</th>
+                                    <th>City / Country</th>
+                                    <th>Phone</th>
                                     <th>Email</th>
-                                    <th>Lead ID</th>
+                                    <th>Website Status</th>
+                                    <th>Lead Status</th>
                                     <th>Rating</th>
                                 </tr>
                             </thead>
@@ -207,6 +284,16 @@
             'WEBSITE_UNAVAILABLE': 'SITE UNAVAILABLE', 'INVALID_EMAIL': 'INVALID EMAIL',
             'ANALYZING': 'ANALYZING…', 'NOT_ANALYZED': 'QUEUED', 'ERROR': 'ERROR',
         };
+        // Website-status pills — stored codes, never guessed in the browser
+        const WS_PILLS = {
+            'NO_WEBSITE': 'pill-ws-no', 'HAS_WEBSITE': 'pill-ws-yes',
+            'WEBSITE_INACCESSIBLE': 'pill-ws-down', 'WEBSITE_UNKNOWN': 'pill-ws-unk',
+        };
+        const WS_LABELS = {
+            'NO_WEBSITE': '🚫 NO WEBSITE', 'HAS_WEBSITE': '🌐 HAS WEBSITE',
+            'WEBSITE_INACCESSIBLE': '⚠ INACCESSIBLE', 'WEBSITE_UNKNOWN': '❓ UNKNOWN',
+        };
+        let wsTarget = 'ALL';   // current job-target / quick-filter selection
 
         function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
         const debouncedDiscoveries = debounce(loadDiscoveries, 350);
@@ -233,6 +320,26 @@
             ['countrySelect', 'regionSelect', 'cityInput'].forEach(id => document.getElementById(id).disabled = ww);
         }
 
+        // ── Website Status: quick chips ⇄ precise select ⇄ campaign toggle ──
+        function setWebsiteStatus(code) {
+            wsTarget = code;
+            document.querySelectorAll('.ws-chip').forEach(ch =>
+                ch.classList.toggle('active', ch.dataset.ws === code));
+            document.getElementById('websiteStatusSelect').value = code;
+            const campaignOn = code === 'NO_WEBSITE';
+            document.getElementById('campaignBanner').style.display = campaignOn ? 'flex' : 'none';
+            loadDiscoveries();   // chips double as a results filter
+        }
+        function syncChipsFromSelect() { setWebsiteStatus(document.getElementById('websiteStatusSelect').value); }
+        function onCampaignToggle() {
+            const on = document.getElementById('campaignMode').checked;
+            setWebsiteStatus(on ? 'NO_WEBSITE' : 'ALL');
+            if (!on) document.getElementById('campaignBanner').style.display = 'none';
+            showToast(on ? '🎯 Campaign mode — targeting businesses WITHOUT a website.' : 'Campaign mode off.', 'info');
+        }
+        // Results-only filter (dropdown above the table) stays independent of the job target
+        function onResultsWsFilter() { discPage = 0; loadDiscoveries(); }
+
         async function onCountryChange() {
             const iso = document.getElementById('countrySelect').value;
             const regionSel = document.getElementById('regionSelect');
@@ -257,15 +364,20 @@
                 keyword: document.getElementById('keywordInput').value.trim(),
                 radius_km: document.getElementById('radiusInput').value,
                 max_results: parseInt(document.getElementById('limitSelect').value, 10),
+                website_status: document.getElementById('websiteStatusSelect').value,
+                email_required: document.getElementById('emailRequired').checked,
             };
             if (!payload.worldwide && !payload.country) { showToast('Pick a country or enable Worldwide Mode.', 'warning'); return; }
             if (!payload.keyword && !payload.category) { showToast('Choose a business category or keyword.', 'warning'); return; }
 
             try {
                 const res = await api.startGlobalJob(payload);
-                showToast(`Job ${res.job_id} started — ${res.chunks} target(s).`, 'success');
+                const wsNote = payload.website_status === 'NO_WEBSITE' ? ' (🎯 No-website targeting)' :
+                    payload.website_status !== 'ALL' ? ` (${payload.website_status})` : '';
+                showToast(`Job ${res.job_id} started — ${res.chunks} target(s)${wsNote}.`, 'success');
                 watchJob(res.job_id);
                 loadJobs();
+                loadOppStats();
             } catch (e) { showToast(e.message, 'error'); }
         }
 
@@ -312,7 +424,7 @@
 
                 if (['Completed','Stopped','Failed'].includes(j.status)) {
                     clearInterval(pollTimer);
-                    loadJobs(); loadDiscoveries();
+                    loadJobs(); loadDiscoveries(); loadOppStats();
                 }
                 if ((j.discovered||0) > 0) loadDiscoveriesThrottled();
             } catch (e) { /* keep polling */ }
@@ -352,6 +464,7 @@
                 const params = {
                     limit: PAGE_SIZE, skip: discPage * PAGE_SIZE,
                     email_status: document.getElementById('statusFilter').value,
+                    website_status: document.getElementById('wsFilter').value,
                     q: document.getElementById('discSearch').value.trim(),
                     job_id: new URLSearchParams(location.search).get('job') || '',
                 };
@@ -363,11 +476,11 @@
                     body.innerHTML = data.discoveries.map(d => `
                         <tr>
                             <td><b>${escapeHtml(d.business_name)}</b><br><small style="color:var(--text-muted);">${escapeHtml(d.business_type)}</small></td>
-                            <td><small>${flagEmoji(d.country_code)} ${escapeHtml(d.city || d.region || '')}<br>${escapeHtml(d.country_name)}</small></td>
-                            <td>${d.website_url ? `<a href="${escapeHtml(d.website_url)}" target="_blank" rel="noopener" style="max-width:180px; display:inline-block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom;">${escapeHtml(shortUrl(d.website_url))}</a>` : '<span style="color:var(--text-muted)">—</span>'}</td>
-                            <td><span class="pill ${STATUS_PILLS[d.email_status] || 'pill-notan'}">${STATUS_LABELS[d.email_status] || d.email_status}</span></td>
-                            <td>${d.email ? `<a href="mailto:${escapeHtml(d.email)}" style="color:#059669; font-weight:600;">${escapeHtml(d.email)}</a>` : `<small style="color:var(--text-muted)">${escapeHtml(d.analysis_error || '—')}</small>`}</td>
-                            <td>${d.lead_id ? `<a href="lead-details.html?id=${d.lead_id}" class="badge badge-good">${d.lead_id}</a>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+                            <td><small>${flagEmoji(d.country_code)} ${escapeHtml(d.city || '—')}<br>${escapeHtml(d.country_name)}</small></td>
+                            <td><small>${d.phone_intl ? `<a href="tel:${escapeHtml(d.phone_intl)}">${escapeHtml(d.phone_intl)}</a>` : '—'}</small></td>
+                            <td>${d.email ? `<a href="mailto:${escapeHtml(d.email)}" style="color:#059669; font-weight:600;">${escapeHtml(d.email)}</a>` : `<small style="color:var(--text-muted)">${escapeHtml(d.analysis_error || 'No email found')}</small>`}</td>
+                            <td><span class="pill ${WS_PILLS[d.website_status] || 'pill-ws-unk'}" title="${escapeHtml(d.website_url || 'No website URL from business source')}">${WS_LABELS[d.website_status] || escapeHtml(d.website_status || '')}</span></td>
+                            <td>${leadStatusCell(d)}</td>
                             <td>${d.rating ? `${d.rating} ★<br><small style="color:var(--text-muted)">${d.review_count || 0} reviews</small>` : '—'}</td>
                         </tr>`).join('');
                 }
@@ -378,7 +491,35 @@
             } catch (e) { showToast(e.message, 'error'); }
         }
 
-        function shortUrl(u) { try { return new URL(u).hostname.replace('www.',''); } catch { return u; } }
+        // Lead-status pill derived from stored fields — never guessed
+        function leadStatusCell(d) {
+            if (d.lead_id) return `<a href="lead-details.html?id=${d.lead_id}" class="pill lead-pill-qualified">★ QUALIFIED · ${d.lead_id}</a>`;
+            const ws = d.website_status;
+            if ((d.email || '').trim() && ws !== 'NO_WEBSITE') {
+                return '<span class="pill lead-pill-target">NOT TARGET (website)</span>';
+            }
+            if ((d.email || '').trim()) return '<span class="pill lead-pill-qualified">QUALIFIED ✓</span>';
+            switch (d.email_status) {
+                case 'EMAIL_FOUND': return '<span class="pill lead-pill-qualified">EMAIL ✓ · pending save</span>';
+                case 'WEBSITE_UNAVAILABLE': return '<span class="pill lead-pill-target">⚠ SITE UNREACHABLE</span>';
+                case 'ANALYZING': return '<span class="pill lead-pill-pending">ANALYZING…</span>';
+                case 'ERROR': return '<span class="pill lead-pill-target">RETRY QUEUED</span>';
+                case 'NOT_ANALYZED': return ws === 'NO_WEBSITE'
+                    ? '<span class="pill lead-pill-pending">🎯 OPPORTUNITY · queued</span>'
+                    : '<span class="pill lead-pill-pending">QUEUED</span>';
+                default: return '<span class="pill lead-pill-skipped">SKIPPED · NO EMAIL ✗</span>';
+            }
+        }
+
+        async function loadOppStats() {
+            try {
+                const s = await api.getGlobalStats();
+                const wo = s.website_opportunity || {};
+                document.getElementById('s_no_website').textContent = (wo.businesses_without_website || 0).toLocaleString();
+                document.getElementById('s_emails_no_ws').textContent = (wo.emails_found_without_website || 0).toLocaleString();
+                document.getElementById('s_opportunity').textContent = (wo.opportunity_leads || 0).toLocaleString();
+            } catch (e) { /* silent */ }
+        }
         function flagEmoji(cc) {
             if (!cc || cc.length !== 2) return '';
             return String.fromCodePoint(...[...cc.toUpperCase()].map(ch => 127397 + ch.charCodeAt(0)));
@@ -415,6 +556,7 @@
         initMeta();
         loadJobs();
         loadDiscoveries();
+        loadOppStats();
 
         // Auto-resume watching any still-running job after reload
         (async () => {

@@ -11,6 +11,22 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
+# Machine website-status code -> human display label (worldwide collector)
+_WS_CODE_LABELS = {
+    "NO_WEBSITE": "No Website",
+    "HAS_WEBSITE": "Has Website",
+    "WEBSITE_INACCESSIBLE": "Website Inaccessible",
+    "WEBSITE_UNKNOWN": "Unknown",
+}
+
+
+def _ws_label(lead) -> str:
+    """Prefer the machine code's label; fall back to legacy human value."""
+    code = getattr(lead, "website_status_code", None)
+    if code and code in _WS_CODE_LABELS:
+        return _WS_CODE_LABELS[code]
+    return lead.website_status or "Unknown"
+
 
 # Brand Color Palette (Hex)
 NAVY_HEADER_FILL = "0F172A"      # Main title & brand fill
@@ -175,7 +191,7 @@ def create_excel_report(leads) -> bytes:
             l.current_website or "",
             l.instagram or "",
             l.facebook or "",
-            l.website_status or "Unknown",
+            _ws_label(l),
             l.preferred_contact_channel or "",
             first_contact_str,
             l.outreach_status or "Not Contacted",

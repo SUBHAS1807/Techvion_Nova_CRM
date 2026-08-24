@@ -85,6 +85,7 @@ class CollectionJob(Base):
     region = Column(String(120), nullable=True)
     keyword = Column(String(200), nullable=True)
     radius_km = Column(Integer, nullable=True)
+    website_status_filter = Column(String(30), nullable=True)  # ALL / NO_WEBSITE / HAS_WEBSITE / WEBSITE_INACCESSIBLE
     discovered = Column(Integer, default=0)               # Places results seen
     websites_found = Column(Integer, default=0)           # discoveries with a site
     emails_found = Column(Integer, default=0)             # analyses yielding an email
@@ -116,6 +117,7 @@ class CollectionJob(Base):
             "region": self.region or "",
             "keyword": self.keyword or "",
             "radius_km": self.radius_km,
+            "website_status_filter": self.website_status_filter or "ALL",
             "discovered": self.discovered or 0,
             "websites_found": self.websites_found or 0,
             "emails_found": self.emails_found or 0,
@@ -208,6 +210,8 @@ class DiscoveredBusiness(Base):
     phone_intl = Column(String(30), nullable=True)
     website_url = Column(String(500), nullable=True)
     has_website = Column(Boolean, default=False)
+    # NO_WEBSITE | HAS_WEBSITE | WEBSITE_INACCESSIBLE | WEBSITE_UNKNOWN
+    website_status = Column(String(30), default="WEBSITE_UNKNOWN", index=True)
     maps_url = Column(String(500), nullable=True)
     rating = Column(Float, nullable=True)
     review_count = Column(Integer, nullable=True)
@@ -248,6 +252,7 @@ class DiscoveredBusiness(Base):
             "phone_intl": self.phone_intl or "",
             "website_url": self.website_url or "",
             "has_website": bool(self.has_website),
+            "website_status": self.website_status or "WEBSITE_UNKNOWN",
             "maps_url": self.maps_url or "",
             "rating": self.rating,
             "review_count": self.review_count,

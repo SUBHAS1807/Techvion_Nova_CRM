@@ -59,6 +59,35 @@ FIELD_MASK = BASE_FIELD_MASK + ",places.regularOpeningHours"
 
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$")
 
+# ── Website status taxonomy (stored in DB, never derived in the frontend) ──
+WS_NO_WEBSITE = "NO_WEBSITE"                    # business source provides no URL — the 🎯 target
+WS_HAS_WEBSITE = "HAS_WEBSITE"                  # a real website URL exists
+WS_INACCESSIBLE = "WEBSITE_INACCESSIBLE"        # URL exists but unreachable/blocked (NOT the same as no website)
+WS_UNKNOWN = "WEBSITE_UNKNOWN"                  # not yet determined
+
+WEBSITE_STATUSES = [WS_NO_WEBSITE, WS_HAS_WEBSITE, WS_INACCESSIBLE, WS_UNKNOWN]
+
+# Display labels used by exports / UI fallbacks
+WS_LABELS = {
+    WS_NO_WEBSITE: "No Website",
+    WS_HAS_WEBSITE: "Has Website",
+    WS_INACCESSIBLE: "Website Inaccessible",
+    WS_UNKNOWN: "Unknown",
+}
+
+
+def classify_website_status(website_url: str | None) -> str:
+    """
+    Classify from what the BUSINESS SOURCE (Google Places) reports:
+      - URL present and non-empty  -> HAS_WEBSITE
+      - URL null/empty/whitespace  -> NO_WEBSITE   (the opportunity target)
+    Reachability is NEVER part of this initial classification — an unreachable
+    site is still a HAS_WEBSITE business until analysis proves otherwise.
+    """
+    if website_url and str(website_url).strip():
+        return WS_HAS_WEBSITE
+    return WS_NO_WEBSITE
+
 # Pause / Stop control flags for running workers
 global_active_jobs: dict[str, dict] = {}
 
@@ -173,6 +202,11 @@ def upsert_qualified_lead(db, disc: DiscoveredBusiness, analysis: dict | None) -
         if not existing_lead.current_website and disc.website_url:
             existing_lead.current_website = disc.website_url
             existing_lead.website_status = "Good"
+        if disc.website_status:
+            # Keep the machine status in sync with the freshest source data
+            existing_lead.website_status_code = disc.website_status
+            if disc.website_status == WS_NO_WEBSITE:
+                existing_lead.website_status = "No Website"
         if not existing_lead.phone and (disc.phone_intl or disc.phone_raw):
             existing_lead.phone = disc.phone_intl or disc.phone_raw
         if not existing_lead.country:
@@ -193,6 +227,7 @@ def upsert_qualified_lead(db, disc: DiscoveredBusiness, analysis: dict | None) -
         return existing_lead, "updated"
 
     lead_id = _next_lead_id(db)
+    no_website_lead = disc.website_status == WS_NO_WEBSITE
     new_lead = Lead(
         lead_id=lead_id,
         business_name=disc.business_name or "Unknown Business",
@@ -210,11 +245,12 @@ def upsert_qualified_lead(db, disc: DiscoveredBusiness, analysis: dict | None) -
         lead_source="Global Collection (Google Places)",
         phone=disc.phone_intl or disc.phone_raw or "",
         email=disc.email,
-        email_source="Business Website",
+        email_source="Business Website" if not no_website_lead else "Public Source",
         email_source_url=disc.email_source_page or "",
         email_status="Found",
-        current_website=disc.website_url or "",
-        website_status="Good" if disc.website_url else "No Website",
+        current_website="" if no_website_lead else (disc.website_url or ""),
+        website_status="No Website" if no_website_lead else "Good",
+        website_status_code=disc.website_status or WS_UNKNOWN,
         address=disc.address or "",
         rating=disc.rating,
         google_rating=disc.rating,
@@ -226,8 +262,10 @@ def upsert_qualified_lead(db, disc: DiscoveredBusiness, analysis: dict | None) -
         google_maps_url=disc.maps_url or "",
         source_url=disc.maps_url or "",
         business_status=disc.business_status or "OPERATIONAL",
-        lead_score=65,
-        remarks=f"Qualified worldwide discovery (public email verified) — Job {disc.job_id}",
+        lead_score=65 if not no_website_lead else 75,   # no-site + email = prime opportunity
+        remarks=("🎯 WEBSITE OPPORTUNITY — no website but public email available. "
+                 f"Job {disc.job_id}" if no_website_lead
+                 else f"Qualified worldwide discovery (public email verified) — Job {disc.job_id}"),
     )
     db.add(new_lead)
     db.flush()
@@ -246,12 +284,16 @@ def _apply_analysis_result(db, disc: DiscoveredBusiness, result: dict, job: Coll
     disc.processed_at = _utcnow()
 
     if result.get("blocked"):
+        # URL exists but the site refused automated access — NOT "no website"
         disc.email_status = "WEBSITE_UNAVAILABLE"
+        disc.website_status = WS_INACCESSIBLE
         disc.analysis_error = (result.get("error") or "")[:300]
         return
 
     if result.get("error") and not result.get("status_code"):
+        # DNS failure / timeout / connection refused — site unreachable
         disc.email_status = "WEBSITE_UNAVAILABLE"
+        disc.website_status = WS_INACCESSIBLE
         disc.analysis_error = (result.get("error") or "")[:300]
         return
 
@@ -260,6 +302,9 @@ def _apply_analysis_result(db, disc: DiscoveredBusiness, result: dict, job: Coll
         disc.analysis_error = (result.get("error") or "")[:300]
         job.errors += 1
         return
+
+    # Site reachable — classification confirmed
+    disc.website_status = WS_HAS_WEBSITE
 
     primary = (result.get("primary_email") or "").strip()
     if primary and EMAIL_RE.match(primary):
@@ -341,6 +386,8 @@ def _run_global_worker(job_id: str):
             db.commit()
 
         total_chunks = len(chunks)
+        # Website-status targeting for this job
+        ws_target = (job.website_status_filter or "ALL").upper()
 
         while chunks:
             if control.get("stop"):
@@ -366,7 +413,7 @@ def _run_global_worker(job_id: str):
             log_prefix = f"[{country.get('name', iso2)}]"
 
             # ── Discovery phase: paginate Places results ─────────────────
-            per_chunk_limit = min(int(chunk.get("limit") or 20), 60)
+            per_chunk_limit = min(int(chunk.get("limit") or 20), 100)
             page_token = None
             seen_this_chunk = set()
             chunk_new = 0
@@ -407,7 +454,23 @@ def _run_global_worker(job_id: str):
                     ).first()
 
                     if existing:
-                        # Already known — requeue only transient failures
+                        # Duplicate place — refresh classification instead of duplicating.
+                        # If a previously NO_WEBSITE business now has a site, upgrade it.
+                        if website and existing.website_status in (WS_NO_WEBSITE, WS_UNKNOWN):
+                            existing.website_url = website
+                            existing.has_website = True
+                            existing.website_status = WS_HAS_WEBSITE
+                            if existing.lead_id:
+                                lead_row = db.query(Lead).filter(
+                                    Lead.lead_id == existing.lead_id).first()
+                                if lead_row and not (lead_row.current_website or "").strip():
+                                    lead_row.current_website = website
+                                    lead_row.website_status = "Good"
+                                    lead_row.website_status_code = WS_HAS_WEBSITE
+                            _log(db, job_id, "INFO",
+                                 f"{log_prefix} ↻ {existing.business_name} gained a website — "
+                                 f"upgraded {existing.website_status}")
+                        # Requeue only transient analysis failures
                         if existing.email_status in ("NOT_ANALYZED", "ERROR", "ANALYZING") and website:
                             existing.job_id = job_id
                         continue
@@ -426,6 +489,7 @@ def _run_global_worker(job_id: str):
                         phone_intl=normalize_intl_phone(raw_phone, cc),
                         website_url=website or None,
                         has_website=bool(website),
+                        website_status=classify_website_status(website),
                         maps_url=p.get("googleMapsUri") or "",
                         rating=p.get("rating"),
                         review_count=p.get("userRatingCount"),
@@ -450,55 +514,85 @@ def _run_global_worker(job_id: str):
             db.commit()
 
             # ── Analysis phase: parallel website email discovery ─────────
-            pending_rows = db.query(DiscoveredBusiness).filter(
-                DiscoveredBusiness.job_id == job_id,
-                DiscoveredBusiness.has_website.is_(True),
-                DiscoveredBusiness.email_status.in_(["NOT_ANALYZED", "ERROR"]),
-            ).limit(per_chunk_limit * 2).all()
-
-            if pending_rows and not control.get("stop") and not control.get("pause"):
-                _log(db, job_id, "INFO",
-                     f"{log_prefix} Analyzing {len(pending_rows)} website(s) for public emails...")
+            # Website-status targeting decides what gets crawled & promoted.
+            if ws_target == WS_NO_WEBSITE:
+                # No websites exist for these businesses — there is nothing to
+                # crawl. Close them out honestly instead of leaving them queued.
+                no_site_rows = db.query(DiscoveredBusiness).filter(
+                    DiscoveredBusiness.job_id == job_id,
+                    DiscoveredBusiness.has_website.is_(False),
+                    DiscoveredBusiness.email_status == "NOT_ANALYZED",
+                ).all()
+                for row in no_site_rows:
+                    row.email_status = ("EMAIL_FOUND" if (row.email or "").strip()
+                                        else "EMAIL_NOT_FOUND")
+                    row.analysis_error = None if (row.email or "").strip() else \
+                        "No website provided by business source — nothing to analyze"
+                    row.processed_at = _utcnow()
                 db.commit()
-                with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-                    futures = {
-                        pool.submit(_analyze_site_task, d.id, d.website_url): d.id
-                        for d in pending_rows if d.website_url
-                    }
-                    for fut in as_completed(futures):
-                        if control.get("stop"):
-                            for f in futures:
-                                f.cancel()
-                            break
-                        try:
-                            res = fut.result()
-                        except Exception as e:                       # noqa: BLE001
-                            _log(db, job_id, "ERROR", f"Analysis thread crash: {e}")
-                            continue
-                        row = db.query(DiscoveredBusiness).filter(
-                            DiscoveredBusiness.id == res["disc_id"]).first()
-                        if row is None:
-                            continue
-                        row.email_status = "ANALYZING"
-                        _apply_analysis_result(db, row, res, job)
-                        if row.email_status == "EMAIL_FOUND":
-                            _log(db, job_id, "SUCCESS",
-                                 f"{log_prefix} ✓ {row.business_name}: {row.email}")
-                        db.commit()
+                _log(db, job_id, "INFO",
+                     f"{log_prefix} 🎯 No-website targeting: {len(no_site_rows)} business(es) "
+                     f"classified NO_WEBSITE (sites never assumed missing due to errors).")
+            else:
+                pending_rows = db.query(DiscoveredBusiness).filter(
+                    DiscoveredBusiness.job_id == job_id,
+                    DiscoveredBusiness.has_website.is_(True),
+                    DiscoveredBusiness.website_status.in_([WS_HAS_WEBSITE, WS_UNKNOWN]),
+                    DiscoveredBusiness.email_status.in_(["NOT_ANALYZED", "ERROR"]),
+                ).limit(per_chunk_limit * 2).all()
 
-                # ── Qualification phase: NO EMAIL = NO LEAD ──────────────
-                newly_found = db.query(DiscoveredBusiness).filter(
+                if pending_rows and not control.get("stop") and not control.get("pause"):
+                    _log(db, job_id, "INFO",
+                         f"{log_prefix} Analyzing {len(pending_rows)} website(s) for public emails...")
+                    db.commit()
+                    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+                        futures = {
+                            pool.submit(_analyze_site_task, d.id, d.website_url): d.id
+                            for d in pending_rows if d.website_url
+                        }
+                        for fut in as_completed(futures):
+                            if control.get("stop"):
+                                for f in futures:
+                                    f.cancel()
+                                break
+                            try:
+                                res = fut.result()
+                            except Exception as e:                   # noqa: BLE001
+                                _log(db, job_id, "ERROR", f"Analysis thread crash: {e}")
+                                continue
+                            row = db.query(DiscoveredBusiness).filter(
+                                DiscoveredBusiness.id == res["disc_id"]).first()
+                            if row is None:
+                                continue
+                            row.email_status = "ANALYZING"
+                            _apply_analysis_result(db, row, res, job)
+                            if row.email_status == "EMAIL_FOUND":
+                                _log(db, job_id, "SUCCESS",
+                                     f"{log_prefix} ✓ {row.business_name}: {row.email}")
+                            db.commit()
+
+                # ── Qualification phase: NO EMAIL = NO LEAD (+ status gate) ──
+                qual_query = db.query(DiscoveredBusiness).filter(
                     DiscoveredBusiness.job_id == job_id,
                     DiscoveredBusiness.email_status == "EMAIL_FOUND",
                     DiscoveredBusiness.lead_id.is_(None),
-                ).all()
+                )
+                if ws_target == WS_NO_WEBSITE:
+                    qual_query = qual_query.filter(
+                        DiscoveredBusiness.website_status == WS_NO_WEBSITE)
+                elif ws_target == WS_HAS_WEBSITE:
+                    qual_query = qual_query.filter(
+                        DiscoveredBusiness.website_status == WS_HAS_WEBSITE)
+                newly_found = qual_query.all()
+
                 for row in newly_found:
                     try:
                         lead, action = upsert_qualified_lead(db, row, None)
                         row.lead_id = lead.lead_id
                         job.qualified_leads += 1
+                        tag = "🎯 OPPORTUNITY" if row.website_status == WS_NO_WEBSITE else "★"
                         _log(db, job_id, "INFO",
-                             f"{log_prefix} ★ Qualified as {lead.lead_id} ({action}) — {row.business_name}")
+                             f"{log_prefix} {tag} Qualified as {lead.lead_id} ({action}) — {row.business_name}")
                     except Exception as e:                           # noqa: BLE001
                         db.rollback()
                         _log(db, job_id, "ERROR", f"Qualification failed for {row.place_id}: {e}")
@@ -562,6 +656,13 @@ def global_meta():
         "categories": BUSINESS_CATEGORIES,
         "regions": [],
         "cities": [],
+        "website_statuses": [
+            {"value": "ALL", "label": "All"},
+            {"value": WS_NO_WEBSITE, "label": "🚫 No Website"},
+            {"value": WS_HAS_WEBSITE, "label": "🌐 Has Website"},
+            {"value": WS_INACCESSIBLE, "label": "⚠ Website Inaccessible"},
+            {"value": WS_UNKNOWN, "label": "❓ Unknown"},
+        ],
     }
     if country_param:
         c = find_country(country_param)
@@ -583,7 +684,12 @@ def start_global_job():
     category = (data.get("category") or "Cafe").strip()
     keyword = (data.get("keyword") or "").strip()
     radius_km = data.get("radius_km") or data.get("radiusKm")
-    per_chunk = min(int(data.get("max_results") or 20), 60)
+    per_chunk = min(int(data.get("max_results") or 20), 100)
+
+    # Website-status targeting: ALL | NO_WEBSITE | HAS_WEBSITE | WEBSITE_INACCESSIBLE
+    ws_filter = str(data.get("website_status") or "ALL").strip().upper()
+    if ws_filter not in ("ALL",) + tuple(WEBSITE_STATUSES):
+        return jsonify({"error": f"Invalid website_status '{ws_filter}'"}), 400
 
     # Resolve target countries
     if worldwide:
@@ -628,6 +734,8 @@ def start_global_job():
             label_countries += f" +{len(iso_list) - 6} more"
         scope = "🌎 Worldwide" if worldwide else label_countries
         query_label = f"{keyword or category} @ {scope}" + (f" / {city}" if city else "")
+        if ws_filter != "ALL":
+            query_label += f" [{WS_LABELS.get(ws_filter, ws_filter)}]"
 
         job = CollectionJob(
             job_id=job_id,
@@ -642,12 +750,14 @@ def start_global_job():
             region=region or None,
             keyword=keyword or None,
             radius_km=int(radius_km) if radius_km else None,
+            website_status_filter=(None if ws_filter == "ALL" else ws_filter),
         )
         _save_remaining_chunks(job, chunks)
         db.add(job)
         _log(db, job_id, "INFO",
              f"Global job created — {len(chunks)} target(s): {query_label}. "
-             f"Rule active: NO EMAIL = NO LEAD.")
+             + ("Campaign: 🎯 Website Opportunity Leads. " if ws_filter == WS_NO_WEBSITE else "")
+             + "Rule active: NO EMAIL = NO LEAD.")
         db.commit()
 
         global_active_jobs[job_id] = {"stop": False, "pause": False}
@@ -750,6 +860,7 @@ def stop_global_job(job_id: str):
 def list_discoveries():
     job_id = request.args.get("job_id")
     status = request.args.get("email_status") or request.args.get("status")
+    ws_filter = (request.args.get("website_status") or "").strip().upper()
     q = (request.args.get("q") or "").strip()
     country = (request.args.get("country") or "").strip()
     limit = min(int(request.args.get("limit") or 50), 200)
@@ -762,6 +873,8 @@ def list_discoveries():
             query = query.filter(DiscoveredBusiness.job_id == job_id)
         if status:
             query = query.filter(DiscoveredBusiness.email_status == status.upper())
+        if ws_filter and ws_filter != "ALL":
+            query = query.filter(DiscoveredBusiness.website_status == ws_filter)
         if country:
             query = query.filter(DiscoveredBusiness.country_code == country.upper())
         if q:
@@ -821,11 +934,31 @@ def global_stats():
             .all()
         )
 
+        # Website-opportunity metrics (real data only)
+        no_website_total = db.query(DiscoveredBusiness).filter(
+            DiscoveredBusiness.website_status == WS_NO_WEBSITE).count()
+        emails_no_website = db.query(DiscoveredBusiness).filter(
+            DiscoveredBusiness.website_status == WS_NO_WEBSITE,
+            DiscoveredBusiness.email_status == "EMAIL_FOUND").count()
+        opportunity_leads = db.query(DiscoveredBusiness).filter(
+            DiscoveredBusiness.website_status == WS_NO_WEBSITE,
+            DiscoveredBusiness.lead_id.isnot(None)).count()
+
         crm_global_leads = db.query(Lead).filter(Lead.country.isnot(None)).count()
         api_calls = db.query(ApiUsageRecord).count()
 
         return jsonify({
             "funnel": funnel,
+            "website_opportunity": {
+                "businesses_without_website": no_website_total,
+                "emails_found_without_website": emails_no_website,
+                "opportunity_leads": opportunity_leads,
+                "by_website_status": {
+                    ws: db.query(DiscoveredBusiness)
+                        .filter(DiscoveredBusiness.website_status == ws).count()
+                    for ws in WEBSITE_STATUSES
+                },
+            },
             "crm_global_leads": crm_global_leads,
             "by_country": [{"name": n or "Unknown", "count": c} for n, c in by_country],
             "emails_by_country": [{"name": n or "Unknown", "count": c} for n, c in emails_by_country],

@@ -366,6 +366,132 @@ class TestWorldwideCollector(unittest.TestCase):
         print("[PASS] Test 25: global meta/stats/qualified-export endpoints functional")
 
 
+class TestWebsiteStatusFilter(unittest.TestCase):
+    """Website-status classification, targeting & qualification gating."""
+
+    def setUp(self):
+        self.app = app.test_client()
+        self.app.testing = True
+
+    def test_26_website_status_classifier(self):
+        from backend.routes.global_collect import (
+            classify_website_status, WS_NO_WEBSITE, WS_HAS_WEBSITE,
+            WEBSITE_STATUSES,
+        )
+        self.assertEqual(classify_website_status("https://biz.com"), WS_HAS_WEBSITE)
+        self.assertEqual(classify_website_status("  https://biz.com  "), WS_HAS_WEBSITE)
+        self.assertEqual(classify_website_status(None), WS_NO_WEBSITE)
+        self.assertEqual(classify_website_status(""), WS_NO_WEBSITE)
+        self.assertEqual(classify_website_status("   "), WS_NO_WEBSITE)
+        # A failed fetch must NEVER classify as NO_WEBSITE — separate enum exists
+        self.assertIn(WS_NO_WEBSITE, WEBSITE_STATUSES)
+        self.assertNotIn("WEBSITE_ERROR", WEBSITE_STATUSES)
+        print("[PASS] Test 26: URL presence classifies HAS/NO_WEBSITE (never guesses)")
+
+    def test_27_analysis_maps_inaccessible_not_no_website(self):
+        """Blocked / unreachable sites are WEBSITE_INACCESSIBLE — never NO_WEBSITE."""
+        from backend.routes.global_collect import (
+            _apply_analysis_result, WS_INACCESSIBLE, WS_HAS_WEBSITE,
+        )
+
+        class FakeJob:
+            emails_found = 0
+            errors = 0
+
+        job = FakeJob()
+
+        d1 = DiscoveredBusinessFactory()
+        _apply_analysis_result(None, d1, {"status_code": 403, "blocked": True,
+                                          "error": "Cloudflare challenge"}, job)
+        self.assertEqual(d1.website_status, WS_INACCESSIBLE)
+
+        d2 = DiscoveredBusinessFactory()
+        _apply_analysis_result(None, d2, {"status_code": 0, "error": "DNS failure"}, job)
+        self.assertEqual(d2.website_status, WS_INACCESSIBLE)
+
+        d3 = DiscoveredBusinessFactory()
+        _apply_analysis_result(None, d3, {"status_code": 200, "primary_email":
+                                          "hi@ok.com", "emails": ["hi@ok.com"]}, job)
+        self.assertEqual(d3.website_status, WS_HAS_WEBSITE)
+        print("[PASS] Test 27: blocked/unreachable → WEBSITE_INACCESSIBLE; reachable → HAS_WEBSITE")
+
+    def test_28_no_website_qualification_and_lead_fields(self):
+        """🎯 opportunity path: NO_WEBSITE + public email → qualified lead."""
+        from backend.database import SessionLocal
+        from backend.models import DiscoveredBusiness
+        from backend.routes.global_collect import upsert_qualified_lead, WS_NO_WEBSITE
+
+        db = SessionLocal()
+        try:
+            disc = DiscoveredBusiness(
+                place_id="TEST_NOWS_PLACE_1",
+                business_name="No-Site Test Diner",
+                country_code="US",
+                country_name="United States",
+                city="Austin",
+                email="owner@nositediner.com",
+                email_source_page="https://facebook.com/nositediner",
+                email_status="EMAIL_FOUND",
+                website_url=None,
+                has_website=False,
+                website_status=WS_NO_WEBSITE,
+            )
+            lead, action = upsert_qualified_lead(db, disc, None)
+            db.rollback()   # never persist test data
+            self.assertEqual(action, "created")
+            self.assertEqual(lead.website_status_code, "NO_WEBSITE")
+            self.assertEqual(lead.website_status, "No Website")
+            self.assertEqual(lead.current_website, "")          # honest empty site field
+            self.assertGreaterEqual(lead.lead_score or 0, 75)   # prime prospect score
+            self.assertIn("WEBSITE OPPORTUNITY", lead.remarks or "")
+            print("[PASS] Test 28: NO_WEBSITE+email promotes as 🎯 website-opportunity lead")
+        finally:
+            db.close()
+
+    def test_29_leads_filter_by_machine_website_status(self):
+        """/api/leads?website_status=NO_WEBSITE routes to website_status_code."""
+        resp_all = self.app.get('/api/leads')
+        self.assertEqual(resp_all.status_code, 200)
+        resp_ws = self.app.get('/api/leads?website_status=NO_WEBSITE')
+        self.assertEqual(resp_ws.status_code, 200)
+        rows = resp_ws.get_json().get("leads", [])
+        for r in rows:
+            self.assertEqual(r.get("website_status_code"), "NO_WEBSITE")
+        # legacy human value still works unchanged
+        resp_legacy = self.app.get('/api/leads?website_status=Good')
+        self.assertEqual(resp_legacy.status_code, 200)
+        print(f"[PASS] Test 29: CRM filter supports machine codes "
+              f"({len(rows)} no-website leads) and legacy values")
+
+    def test_30_stats_meta_export_expose_opportunity_metrics(self):
+        resp = self.app.get('/api/global/stats')
+        self.assertEqual(resp.status_code, 200)
+        stats = resp.get_json()
+        wo = stats.get("website_opportunity", {})
+        for key in ("businesses_without_website", "emails_found_without_website",
+                    "opportunity_leads", "by_website_status"):
+            self.assertIn(key, wo)
+        self.assertEqual(wo["businesses_without_website"],
+                         wo["by_website_status"].get("NO_WEBSITE"))
+
+        meta = self.app.get('/api/global/meta').get_json()
+        ws_values = [o["value"] for o in meta.get("website_statuses", [])]
+        for v in ("ALL", "NO_WEBSITE", "HAS_WEBSITE",
+                  "WEBSITE_INACCESSIBLE", "WEBSITE_UNKNOWN"):
+            self.assertIn(v, ws_values)
+
+        csv_exp = self.app.get('/api/leads/export/global/csv')
+        content = csv_exp.data.decode("utf-8")
+        self.assertIn("Website Status", content)   # export carries the classification
+        print("[PASS] Test 30: stats/meta/export expose website-opportunity metrics")
+
+
+def DiscoveredBusinessFactory():
+    from backend.models import DiscoveredBusiness
+    return DiscoveredBusiness(place_id=f"T{datetime_now_ns()}",
+                              business_name="WS Test Biz")
+
+
 def datetime_now_ns():
     import time as _t
     return str(_t.time_ns())

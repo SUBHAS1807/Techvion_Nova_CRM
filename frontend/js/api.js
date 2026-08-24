@@ -354,6 +354,14 @@ function showToast(message, type = 'info') {
 // ── Badge & Visual Formatters ───────────────────────────────────────
 
 function websiteStatusBadge(status) {
+    // Machine codes from the worldwide collector map to display labels
+    const WS_CODE_LABELS = {
+        'NO_WEBSITE':           'No Website',
+        'HAS_WEBSITE':          'Good',
+        'WEBSITE_INACCESSIBLE': 'Broken',
+        'WEBSITE_UNKNOWN':      'Unknown',
+    };
+    if (status && WS_CODE_LABELS[status]) status = WS_CODE_LABELS[status];
     if (!status) return '<span class="badge badge-unknown">Unknown</span>';
     const map = {
         'No Website':          'badge-no-website',

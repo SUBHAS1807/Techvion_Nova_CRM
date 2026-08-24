@@ -21,6 +21,22 @@ from backend.models import (
 
 leads_bp = Blueprint("leads", __name__)
 
+# Machine website-status code -> human display label (exports & filters)
+WS_CODE_LABELS = {
+    "NO_WEBSITE": "No Website",
+    "HAS_WEBSITE": "Has Website",
+    "WEBSITE_INACCESSIBLE": "Website Inaccessible",
+    "WEBSITE_UNKNOWN": "Unknown",
+}
+
+
+def _website_status_label(lead) -> str:
+    """Prefer the machine code's label; fall back to legacy human value."""
+    code = getattr(lead, "website_status_code", None)
+    if code and code in WS_CODE_LABELS:
+        return WS_CODE_LABELS[code]
+    return lead.website_status or "Unknown"
+
 
 def _next_lead_id(db: Session) -> str:
     """Generate the next TVN-XXXXXX id by finding the current max."""
@@ -139,7 +155,14 @@ def list_leads():
         if lead_source:
             query = query.filter(Lead.lead_source.ilike(lead_source))
         if website_status:
-            query = query.filter(Lead.website_status == website_status)
+            # Machine codes from the worldwide collector (NO_WEBSITE etc.)
+            # filter on website_status_code; legacy human values stay unchanged.
+            machine_codes = {"NO_WEBSITE", "HAS_WEBSITE", "WEBSITE_INACCESSIBLE",
+                             "WEBSITE_UNKNOWN"}
+            if website_status.upper() in machine_codes:
+                query = query.filter(Lead.website_status_code == website_status.upper())
+            else:
+                query = query.filter(Lead.website_status == website_status)
         if outreach_status:
             query = query.filter(Lead.outreach_status == outreach_status)
         if response_status:
@@ -687,7 +710,7 @@ def export_leads():
                 l.current_website or "",
                 l.instagram or "",
                 l.facebook or "",
-                l.website_status or "Unknown",
+                _website_status_label(l),
                 l.preferred_contact_channel or "",
                 l.first_contact_date.strftime("%Y-%m-%d") if l.first_contact_date else "",
                 l.outreach_status or "Not Contacted",
@@ -771,6 +794,7 @@ def export_global_qualified():
             "Email Source Page", "Phone", "Website",
             "City", "State / Province", "Region", "Country",
             "Postal Code", "Currency", "Address",
+            "Website Status",
             "Google Rating", "Reviews", "Google Maps URL",
             "Instagram / Socials", "Opening Hours",
             "Lead Score", "Exported At",
@@ -804,6 +828,7 @@ def export_global_qualified():
                 l.postal_code or "",
                 l.currency or "",
                 l.address or "",
+                _website_status_label(l),
                 l.rating or l.google_rating or "",
                 l.review_count or l.google_reviews or "",
                 l.google_maps_url or l.source_url or "",
@@ -973,6 +998,15 @@ def get_analytics():
                 "no_email": db.query(d).filter(d.email_status == "EMAIL_NOT_FOUND").count(),
                 "errors": db.query(d).filter(
                     d.email_status.in_(["ERROR", "WEBSITE_UNAVAILABLE", "INVALID_EMAIL"])).count(),
+                # 🎯 Website-opportunity metrics
+                "businesses_without_website": db.query(d).filter(
+                    d.website_status == "NO_WEBSITE").count(),
+                "emails_found_without_website": db.query(d).filter(
+                    d.website_status == "NO_WEBSITE",
+                    d.email_status == "EMAIL_FOUND").count(),
+                "opportunity_leads": db.query(d).filter(
+                    d.website_status == "NO_WEBSITE",
+                    d.lead_id.isnot(None)).count(),
             }
         except Exception:
             pass

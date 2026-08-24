@@ -45,6 +45,7 @@
             <div id="topbarContainer"></div>
 
             <main class="content-body">
+                <div id="oppBanner" style="display:none; align-items:center; gap:10px; background:linear-gradient(90deg,#FEF3C7,#FFEDD5); border:1px solid #FCD34D; border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:14px;"></div>
                 <div class="detail-layout">
                     <!-- Left Column: Business & Lead Records -->
                     <div>
@@ -346,8 +347,20 @@
                 document.getElementById('d_email_source_url_wrap').style.display = 'none';
             }
 
-            document.getElementById('d_website').innerHTML = l.current_website ? `<a href="${l.current_website}" target="_blank">${l.current_website} ↗</a>` : '<span style="color:var(--text-muted);">No Website</span>';
-            document.getElementById('d_web_status').innerHTML = websiteStatusBadge(l.website_status);
+            document.getElementById('d_website').innerHTML = l.current_website ? `<a href="${l.current_website}" target="_blank">${l.current_website} ↗</a>` : '<span style="color:var(--text-muted);">No website found</span>';
+            document.getElementById('d_web_status').innerHTML = websiteStatusBadge(l.website_status_code || l.website_status);
+            // 🎯 Website Opportunity banner (worldwide collector leads)
+            const oppWrap = document.getElementById('oppBanner');
+            const isNoSite = (l.website_status_code === 'NO_WEBSITE') ||
+                             (!l.website_status_code && l.website_status === 'No Website');
+            if (isNoSite) {
+                oppWrap.style.display = 'flex';
+                oppWrap.innerHTML = `🎯 <div><b>Website Opportunity</b> — this business has no website.
+                    ${l.email ? '<span style="color:#059669;font-weight:700;">✓ Potential Website Customer</span> (public email available)'
+                              : 'No public email on file yet.'}</div>`;
+            } else {
+                oppWrap.style.display = 'none';
+            }
             document.getElementById('d_instagram').textContent = l.instagram || '—';
             document.getElementById('d_facebook').textContent = l.facebook || '—';
 

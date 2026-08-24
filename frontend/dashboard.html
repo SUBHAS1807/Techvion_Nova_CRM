@@ -125,6 +125,18 @@
                         <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Skipped (no email)</span>
                         <strong style="color:var(--danger); font-size:15px;" id="g_no_email">0</strong>
                     </div>
+                    <div style="background:#FEF2F2; border:1px solid #FECACA; border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:#B91C1C; font-weight:600;">🚫 No Website</span>
+                        <strong style="color:#DC2626; font-size:15px;" id="g_no_website">0</strong>
+                    </div>
+                    <div style="background:#FFFBEB; border:1px solid #FDE68A; border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:#92400E; font-weight:600;">📧 Emails · No Website</span>
+                        <strong style="color:#D97706; font-size:15px;" id="g_emails_no_website">0</strong>
+                    </div>
+                    <div style="background:#ECFDF5; border:1px solid #A7F3D0; border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:#065F46; font-weight:600;">🎯 Opportunity Leads</span>
+                        <strong style="color:#059669; font-size:15px;" id="g_opportunity_leads">0</strong>
+                    </div>
                 </div>
 
                 <!-- Clean Charts Breakdown Grid -->
@@ -229,6 +241,10 @@
                 document.getElementById('g_emails').textContent = (g.emails || 0).toLocaleString();
                 document.getElementById('g_qualified').textContent = (g.qualified || 0).toLocaleString();
                 document.getElementById('g_no_email').textContent = ((g.no_email || 0) + (g.errors || 0)).toLocaleString();
+                // 🎯 Website-opportunity tiles (real DB data)
+                document.getElementById('g_no_website').textContent = (g.businesses_without_website || 0).toLocaleString();
+                document.getElementById('g_emails_no_website').textContent = (g.emails_found_without_website || 0).toLocaleString();
+                document.getElementById('g_opportunity_leads').textContent = (g.opportunity_leads || 0).toLocaleString();
             } catch (e) {
                 showToast(e.message, 'error');
             }

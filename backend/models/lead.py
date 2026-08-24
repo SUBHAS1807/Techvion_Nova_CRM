@@ -63,6 +63,10 @@ class Lead(Base):
     # Options: No Website, Good, Outdated, Broken, Under Construction, E-commerce Website, Booking Website, Unknown
     website_status = Column(String(50), nullable=False, default="Unknown", index=True)
 
+    # 14b. Machine website status code (worldwide collector)
+    # NO_WEBSITE | HAS_WEBSITE | WEBSITE_INACCESSIBLE | WEBSITE_UNKNOWN
+    website_status_code = Column(String(30), nullable=True, index=True)
+
     # 15. Preferred Contact Channel
     preferred_contact_channel = Column(String(50), nullable=True)
 
@@ -187,6 +191,7 @@ class Lead(Base):
             "instagram": self.instagram or "",
             "facebook": self.facebook or "",
             "website_status": self.website_status or "Unknown",
+            "website_status_code": self.website_status_code or "",
             "preferred_contact_channel": self.preferred_contact_channel or "",
             "first_contact_date": self.first_contact_date.isoformat() if self.first_contact_date else None,
             "outreach_status": self.outreach_status or "Not Contacted",

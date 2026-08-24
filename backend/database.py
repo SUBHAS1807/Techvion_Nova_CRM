@@ -54,6 +54,8 @@ def run_migrations():
                 "currency": "ALTER TABLE leads ADD COLUMN currency VARCHAR(8) DEFAULT 'INR'",
                 "other_socials": "ALTER TABLE leads ADD COLUMN other_socials TEXT",
                 "opening_hours": "ALTER TABLE leads ADD COLUMN opening_hours TEXT",
+                # Machine website status code (worldwide collector)
+                "website_status_code": "ALTER TABLE leads ADD COLUMN website_status_code VARCHAR(30)",
             }
             for col, ddl in migrations.items():
                 if col not in existing_cols:
@@ -72,6 +74,7 @@ def run_migrations():
                     "region": "ALTER TABLE crawl_jobs ADD COLUMN region VARCHAR(120)",
                     "keyword": "ALTER TABLE crawl_jobs ADD COLUMN keyword VARCHAR(200)",
                     "radius_km": "ALTER TABLE crawl_jobs ADD COLUMN radius_km INTEGER",
+                    "website_status_filter": "ALTER TABLE crawl_jobs ADD COLUMN website_status_filter VARCHAR(30)",
                     "discovered": "ALTER TABLE crawl_jobs ADD COLUMN discovered INTEGER DEFAULT 0",
                     "websites_found": "ALTER TABLE crawl_jobs ADD COLUMN websites_found INTEGER DEFAULT 0",
                     "emails_found": "ALTER TABLE crawl_jobs ADD COLUMN emails_found INTEGER DEFAULT 0",
@@ -86,6 +89,32 @@ def run_migrations():
                             conn.execute(text(ddl))
                         except Exception as e:
                             print(f"Migration notice (crawl_jobs.{col}): {e}")
+
+            # discovered_businesses website_status column (new installs get it
+            # from the model; existing DBs are migrated here)
+            disc_cols = [r[1] for r in conn.execute(text("PRAGMA table_info(discovered_businesses)"))]
+            if disc_cols and "website_status" not in disc_cols:
+                try:
+                    conn.execute(text("ALTER TABLE discovered_businesses ADD COLUMN website_status VARCHAR(30) DEFAULT 'WEBSITE_UNKNOWN'"))
+                except Exception as e:
+                    print(f"Migration notice (discovered_businesses.website_status): {e}")
+            # Backfill: classify pre-existing rows from stored source truth
+            # (website_url presence) so stats/filters cover legacy discoveries.
+            # NOTE: SQLite's ALTER TABLE ... DEFAULT fills existing rows with
+            # the default, so legacy rows carry 'WEBSITE_UNKNOWN' rather than NULL.
+            if disc_cols:
+                try:
+                    conn.execute(text(
+                        "UPDATE discovered_businesses SET website_status = 'HAS_WEBSITE' "
+                        "WHERE (website_status IS NULL OR website_status = 'WEBSITE_UNKNOWN') "
+                        "AND website_url IS NOT NULL AND TRIM(website_url) != ''"))
+                    # Remaining legacy rows had no source URL → true no-website
+                    conn.execute(text(
+                        "UPDATE discovered_businesses SET website_status = 'NO_WEBSITE' "
+                        "WHERE website_status IS NULL "
+                        "OR website_status = 'WEBSITE_UNKNOWN'"))
+                except Exception as e:
+                    print(f"Migration notice (website_status backfill): {e}")
 
             # Create performance indexes
             indexes = [

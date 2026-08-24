@@ -86,13 +86,21 @@
                             </select>
                             <select id="filterWebsiteStatus" class="filter-select" onchange="applyFilters()">
                                 <option value="">Website Status</option>
-                                <option value="No Website">No Website</option>
-                                <option value="Good">Good</option>
-                                <option value="Outdated">Outdated</option>
-                                <option value="Broken">Broken</option>
-                                <option value="Under Construction">Under Construction</option>
-                                <option value="E-commerce Website">E-commerce</option>
-                                <option value="Booking Website">Booking</option>
+                                <optgroup label="Worldwide Collector">
+                                    <option value="NO_WEBSITE">🚫 No Website (opportunity)</option>
+                                    <option value="HAS_WEBSITE">🌐 Has Website</option>
+                                    <option value="WEBSITE_INACCESSIBLE">⚠ Website Inaccessible</option>
+                                    <option value="WEBSITE_UNKNOWN">❓ Unknown</option>
+                                </optgroup>
+                                <optgroup label="Classic">
+                                    <option value="No Website">No Website</option>
+                                    <option value="Good">Good</option>
+                                    <option value="Outdated">Outdated</option>
+                                    <option value="Broken">Broken</option>
+                                    <option value="Under Construction">Under Construction</option>
+                                    <option value="E-commerce Website">E-commerce</option>
+                                    <option value="Booking Website">Booking</option>
+                                </optgroup>
                             </select>
                             <select id="filterOutreach" class="filter-select" onchange="applyFilters()">
                                 <option value="">Outreach Status</option>
