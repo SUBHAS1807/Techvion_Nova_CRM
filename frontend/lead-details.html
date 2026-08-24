@@ -59,6 +59,9 @@
                                 <div class="detail-field"><span class="detail-label">Owner Name</span><span class="detail-val" id="d_owner">—</span></div>
                                 <div class="detail-field"><span class="detail-label">Business Type</span><span class="detail-val" id="d_type">—</span></div>
                                 <div class="detail-field"><span class="detail-label">City</span><span class="detail-val" id="d_city">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Country</span><span class="detail-val" id="d_country">—</span></div>
+                                <div class="detail-field"><span class="detail-label">State / Region</span><span class="detail-val" id="d_region">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Postal Code</span><span class="detail-val" id="d_postal">—</span></div>
                                 <div class="drawer-item-full detail-field"><span class="detail-label">Full Address</span><span class="detail-val" id="d_address">—</span></div>
                                 <div class="detail-field"><span class="detail-label">Lead Source</span><span class="detail-val" id="d_source">—</span></div>
                                 <div class="detail-field"><span class="detail-label">Google Rating</span><span class="detail-val" id="d_rating">—</span></div>
@@ -315,6 +318,9 @@
             document.getElementById('d_owner').textContent = l.owner_name || 'Unknown';
             document.getElementById('d_type').textContent = l.business_type;
             document.getElementById('d_city').textContent = l.city;
+            document.getElementById('d_country').textContent = l.country || '—';
+            document.getElementById('d_region').textContent = l.region || l.state_province || '—';
+            document.getElementById('d_postal').textContent = l.postal_code || '—';
             document.getElementById('d_source').textContent = l.lead_source;
             document.getElementById('d_address').textContent = l.address || '—';
             document.getElementById('d_rating').textContent = l.rating !== null ? `${l.rating} ⭐` : '—';

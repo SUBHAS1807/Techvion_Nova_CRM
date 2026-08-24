@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Worldwide Lead Collector – TechvionNova CRM">
+    <title>🌍 Worldwide Collector | TechvionNova CRM</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .globe-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap:14px; }
+        .globe-stat { background:var(--surface-alt,#F8FAFC); border:1px solid var(--border,#E2E8F0); border-radius:10px; padding:12px 14px; }
+        .globe-stat b { display:block; font-size:22px; line-height:1.2; }
+        .globe-stat span { font-size:11.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.4px; }
+        .progress-track { height:8px; border-radius:6px; background:#E2E8F0; overflow:hidden; margin-top:10px; }
+        .progress-fill { height:100%; border-radius:6px; background:linear-gradient(90deg,#2563eb,#10b981); transition:width .5s ease; }
+        .log-box { font-family:Consolas,Menlo,monospace; font-size:11.5px; max-height:190px; overflow-y:auto; background:#0F172A; color:#94A3B8; border-radius:10px; padding:12px 14px; }
+        .log-line { margin-bottom:3px; word-break:break-word; }
+        .log-success { color:#4ADE80; } .log-error { color:#F87171; } .log-warn { color:#FBBF24; }
+        .pill { display:inline-block; padding:2px 9px; border-radius:999px; font-size:10.5px; font-weight:700; letter-spacing:.3px; white-space:nowrap; }
+        .pill-found      { background:#DCFCE7; color:#166534; }
+        .pill-notfound   { background:#F1F5F9; color:#475569; }
+        .pill-unavail    { background:#FFEDD5; color:#9A3412; }
+        .pill-invalid    { background:#FEE2E2; color:#991B1B; }
+        .pill-analyzing  { background:#DBEAFE; color:#1E40AF; }
+        .pill-notan      { background:#F8FAFC; color:#94A3B8; border:1px dashed #CBD5E1; }
+        .pill-error      { background:#FEE2E2; color:#991B1B; }
+        .worldwide-banner { display:flex; align-items:center; gap:10px; background:linear-gradient(90deg,#EFF6FF,#ECFDF5); border:1px solid #BFDBFE; border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:16px; }
+    </style>
+</head>
+<body>
+    <div class="app-layout" id="app">
+        <!-- Sidebar injected by JS -->
+        <div class="main-wrapper">
+            <!-- Topbar injected by JS -->
+            <div id="topbarContainer"></div>
+
+            <main class="content-body">
+                <div class="worldwide-banner">
+                    🌍 <div><b>Worldwide Lead Collection</b> — discover businesses in any country, verify their public email, and save <b>ONLY businesses with real emails</b> as leads. Rule: NO EMAIL = NO LEAD.</div>
+                </div>
+
+                <!-- Configuration Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🎯 Collection Target</div>
+                        <span style="font-size:12px;color:var(--text-muted);">Powered by Google Places (New) + Website Analyzer</span>
+                    </div>
+                    <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));">
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                                <input type="checkbox" id="worldwideMode" style="width:auto;" onchange="onWorldwideToggle()">
+                                <b>🌎 Worldwide Mode</b> <small style="color:var(--text-muted);">(auto-targets 20 major markets)</small>
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="countrySelect">Country *</label>
+                            <select id="countrySelect" onchange="onCountryChange()"></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="regionSelect">State / Region</label>
+                            <select id="regionSelect"><option value="">— Any —</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="cityInput">City</label>
+                            <input type="text" id="cityInput" list="cityList" placeholder="Any city…">
+                            <datalist id="cityList"></datalist>
+                        </div>
+                        <div class="form-group">
+                            <label for="categorySelect">Business Category</label>
+                            <select id="categorySelect"></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="keywordInput">Custom Keyword (overrides category)</label>
+                            <input type="text" id="keywordInput" placeholder='e.g. "wedding photographer"'>
+                        </div>
+                        <div class="form-group">
+                            <label for="radiusInput">Radius km (optional)</label>
+                            <input type="number" id="radiusInput" min="1" max="50000" placeholder="—">
+                        </div>
+                        <div class="form-group">
+                            <label for="limitSelect">Max results / country</label>
+                            <select id="limitSelect">
+                                <option value="20" selected>20</option>
+                                <option value="40">40</option>
+                                <option value="60">60 (max)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
+                        <button type="button" class="btn btn-primary" id="startBtn" onclick="startJob()">🚀 Start Collection</button>
+                        <button type="button" class="btn btn-secondary" id="pauseBtn" onclick="jobAction('pause')" disabled>⏸ Pause</button>
+                        <button type="button" class="btn btn-secondary" id="resumeBtn" onclick="jobAction('resume')" disabled>▶ Resume</button>
+                        <button type="button" class="btn btn-danger btn-sm" id="stopBtn" onclick="jobAction('stop')" disabled style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;">⏹ Stop</button>
+                        <span id="apiStatusTag" style="font-size:12px;color:var(--text-muted);align-self:center;"></span>
+                    </div>
+                </div>
+
+                <!-- Live Job Progress -->
+                <div class="card" id="progressCard" style="display:none;">
+                    <div class="card-header">
+                        <div class="card-title">📡 Live Progress — <span id="activeJobId"></span></div>
+                        <span class="pill pill-notan" id="activeJobStatus">PENDING</span>
+                    </div>
+                    <div class="globe-grid" id="counterGrid">
+                        <div class="globe-stat"><b id="c_discovered">0</b><span>Discovered</span></div>
+                        <div class="globe-stat"><b id="c_websites">0</b><span>Websites</span></div>
+                        <div class="globe-stat"><b id="c_emails" style="color:#059669;">0</b><span>Emails Found</span></div>
+                        <div class="globe-stat"><b id="c_qualified" style="color:#2563eb;">0</b><span>★ Qualified Leads</span></div>
+                        <div class="globe-stat"><b id="c_skipped">0</b><span>Skipped (no email)</span></div>
+                        <div class="globe-stat"><b id="c_errors" style="color:#DC2626;">0</b><span>Errors</span></div>
+                    </div>
+                    <div style="margin-top:12px; font-size:12.5px; color:var(--text-secondary);">
+                        Current target: <b id="currentChunk">—</b> · Queued chunks: <b id="pendingChunks">0</b>
+                    </div>
+                    <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+                    <div class="log-box" id="liveLog" style="margin-top:14px;"><div class="log-line">// waiting for activity…</div></div>
+                </div>
+
+                <!-- Discoveries -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🔎 Discovered Businesses</div>
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                            <select id="statusFilter" onchange="loadDiscoveries()" style="padding:7px 10px; border-radius:8px; border:1px solid var(--border,#E2E8F0); font-size:12.5px;">
+                                <option value="">All statuses</option>
+                                <option value="EMAIL_FOUND">✓ Email Found</option>
+                                <option value="EMAIL_NOT_FOUND">No Email</option>
+                                <option value="WEBSITE_UNAVAILABLE">Website Unavailable</option>
+                                <option value="INVALID_EMAIL">Invalid Email</option>
+                                <option value="ERROR">Error</option>
+                            </select>
+                            <input type="text" id="discSearch" placeholder="Search…" oninput="debouncedDiscoveries()" style="padding:7px 10px; border-radius:8px; border:1px solid var(--border,#E2E8F0); font-size:12.5px; width:160px;">
+                            <a class="btn btn-secondary btn-sm" id="exportCsvBtn" href="/api/leads/export/global/csv">⬇ Qualified CSV</a>
+                            <a class="btn btn-primary btn-sm" id="exportXlsxBtn" href="/api/leads/export/global/excel">⬇ Qualified Excel</a>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Business</th>
+                                    <th>Location</th>
+                                    <th>Website</th>
+                                    <th>Email Status</th>
+                                    <th>Email</th>
+                                    <th>Lead ID</th>
+                                    <th>Rating</th>
+                                </tr>
+                            </thead>
+                            <tbody id="discoveriesBody">
+                                <tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:22px;">No discoveries yet — start a collection above.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style="display:flex; justify-content:center; gap:8px; margin-top:12px;">
+                        <button class="btn btn-secondary btn-sm" onclick="pageMove(-1)" id="prevPageBtn">← Prev</button>
+                        <span id="pageInfo" style="font-size:12px; align-self:center; color:var(--text-muted);"></span>
+                        <button class="btn btn-secondary btn-sm" onclick="pageMove(1)" id="nextPageBtn">Next →</button>
+                    </div>
+                </div>
+
+                <!-- Job History -->
+                <div class="card">
+                    <div class="card-header"><div class="card-title">🗂 Global Job History</div></div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Job</th><th>Target</th><th>Status</th>
+                                    <th>Discovered</th><th>Websites</th><th>Emails</th>
+                                    <th>Qualified</th><th>Skipped</th><th>Created</th><th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="jobsBody">
+                                <tr><td colspan="10" style="text-align:center; color:var(--text-muted); padding:18px;">No global jobs yet.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        let metaCache = null;
+        let activeJobId = null;
+        let pollTimer = null;
+        let discPage = 0;
+        const PAGE_SIZE = 25;
+
+        const topActionsHtml = `
+            <a href="collect.html" class="btn btn-secondary btn-sm">${getIcon('search')} Single-City Search</a>
+            <a href="leads.html" class="btn btn-secondary btn-sm">${getIcon('leads')} View Leads</a>`;
+        document.getElementById('topbarContainer').innerHTML =
+            renderTopNav('🌍 Worldwide Collector', 'Multi-country business discovery with strict email qualification.', topActionsHtml);
+        document.getElementById('app').insertAdjacentHTML('afterbegin', renderSidebar('global'));
+
+        const STATUS_PILLS = {
+            'EMAIL_FOUND': 'pill-found', 'EMAIL_NOT_FOUND': 'pill-notfound',
+            'WEBSITE_UNAVAILABLE': 'pill-unavail', 'INVALID_EMAIL': 'pill-invalid',
+            'ANALYZING': 'pill-analyzing', 'NOT_ANALYZED': 'pill-notan', 'ERROR': 'pill-error',
+        };
+        const STATUS_LABELS = {
+            'EMAIL_FOUND': '✓ EMAIL FOUND', 'EMAIL_NOT_FOUND': 'NO EMAIL',
+            'WEBSITE_UNAVAILABLE': 'SITE UNAVAILABLE', 'INVALID_EMAIL': 'INVALID EMAIL',
+            'ANALYZING': 'ANALYZING…', 'NOT_ANALYZED': 'QUEUED', 'ERROR': 'ERROR',
+        };
+
+        function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+        const debouncedDiscoveries = debounce(loadDiscoveries, 350);
+
+        async function initMeta() {
+            try {
+                metaCache = await api.getGlobalMeta();
+                const sel = document.getElementById('countrySelect');
+                sel.innerHTML = '<option value="">— Select country —</option>' +
+                    metaCache.countries.map(c => `<option value="${c.iso2}">${c.name}</option>`).join('');
+                const cat = document.getElementById('categorySelect');
+                cat.innerHTML = metaCache.categories.map(c => `<option>${c}</option>`).join('');
+
+                // API status hint
+                const gs = await api.getGoogleStatus().catch(() => null);
+                document.getElementById('apiStatusTag').textContent = gs
+                    ? (gs.api_key_configured ? `Google API key: ${gs.masked_key}` : '⚠ Google API key not configured')
+                    : '';
+            } catch (e) { showToast(e.message, 'error'); }
+        }
+
+        function onWorldwideToggle() {
+            const ww = document.getElementById('worldwideMode').checked;
+            ['countrySelect', 'regionSelect', 'cityInput'].forEach(id => document.getElementById(id).disabled = ww);
+        }
+
+        async function onCountryChange() {
+            const iso = document.getElementById('countrySelect').value;
+            const regionSel = document.getElementById('regionSelect');
+            const cityList = document.getElementById('cityList');
+            regionSel.innerHTML = '<option value="">— Any —</option>';
+            cityList.innerHTML = '';
+            if (!iso || !metaCache) return;
+            try {
+                const m = await api.getGlobalMeta(iso);
+                m.regions.forEach(r => regionSel.insertAdjacentHTML('beforeend', `<option>${r}</option>`));
+                m.cities.forEach(c => cityList.insertAdjacentHTML('beforeend', `<option value="${c}">`));
+            } catch (e) { /* silent */ }
+        }
+
+        async function startJob() {
+            const payload = {
+                worldwide: document.getElementById('worldwideMode').checked,
+                country: document.getElementById('countrySelect').selectedOptions[0]?.textContent || '',
+                region: document.getElementById('regionSelect').value,
+                city: document.getElementById('cityInput').value.trim(),
+                category: document.getElementById('categorySelect').value,
+                keyword: document.getElementById('keywordInput').value.trim(),
+                radius_km: document.getElementById('radiusInput').value,
+                max_results: parseInt(document.getElementById('limitSelect').value, 10),
+            };
+            if (!payload.worldwide && !payload.country) { showToast('Pick a country or enable Worldwide Mode.', 'warning'); return; }
+            if (!payload.keyword && !payload.category) { showToast('Choose a business category or keyword.', 'warning'); return; }
+
+            try {
+                const res = await api.startGlobalJob(payload);
+                showToast(`Job ${res.job_id} started — ${res.chunks} target(s).`, 'success');
+                watchJob(res.job_id);
+                loadJobs();
+            } catch (e) { showToast(e.message, 'error'); }
+        }
+
+        function setButtons(status) {
+            document.getElementById('pauseBtn').disabled = status !== 'Running';
+            document.getElementById('resumeBtn').disabled = status !== 'Paused';
+            document.getElementById('stopBtn').disabled = !['Running', 'Pending', 'Paused'].includes(status);
+            document.getElementById('startBtn').disabled = false;
+        }
+
+        function watchJob(jobId) {
+            activeJobId = jobId;
+            clearInterval(pollTimer);
+            pollTimer = setInterval(pollActiveJob, 3000);
+            pollActiveJob();
+        }
+
+        async function pollActiveJob() {
+            if (!activeJobId) return;
+            try {
+                const j = await api.getGlobalJob(activeJobId);
+                document.getElementById('progressCard').style.display = '';
+                document.getElementById('activeJobId').textContent = j.job_id;
+                const stPill = document.getElementById('activeJobStatus');
+                stPill.textContent = j.status.toUpperCase();
+                stPill.className = 'pill ' + ({Running:'pill-analyzing', Completed:'pill-found', Paused:'pill-unavail', Stopped:'pill-invalid', Failed:'pill-error'}[j.status] || 'pill-notan');
+
+                document.getElementById('c_discovered').textContent = (j.discovered||0).toLocaleString();
+                document.getElementById('c_websites').textContent = (j.websites_found||0).toLocaleString();
+                document.getElementById('c_emails').textContent = (j.emails_found||0).toLocaleString();
+                document.getElementById('c_qualified').textContent = (j.qualified_leads||0).toLocaleString();
+                document.getElementById('c_skipped').textContent = (j.skipped_no_email||0).toLocaleString();
+                document.getElementById('c_errors').textContent = (j.errors||0).toLocaleString();
+                document.getElementById('currentChunk').textContent = j.current_chunk || '—';
+                document.getElementById('pendingChunks').textContent = j.pending_chunks ?? 0;
+
+                const totalTargets = (j.pending_chunks||0) + Math.max((j.discovered||0) > 0 ? 1 : 0, 1);
+                const pct = j.status === 'Completed' ? 100 :
+                    Math.min(95, Math.round(((totalTargets - (j.pending_chunks||0)) / Math.max(totalTargets,1)) * 100));
+                document.getElementById('progressFill').style.width = pct + '%';
+
+                setButtons(j.status);
+                renderLogs(j.logs || []);
+
+                if (['Completed','Stopped','Failed'].includes(j.status)) {
+                    clearInterval(pollTimer);
+                    loadJobs(); loadDiscoveries();
+                }
+                if ((j.discovered||0) > 0) loadDiscoveriesThrottled();
+            } catch (e) { /* keep polling */ }
+        }
+
+        let lastDiscLoad = 0;
+        function loadDiscoveriesThrottled() {
+            const now = Date.now();
+            if (now - lastDiscLoad > 4000) { lastDiscLoad = now; loadDiscoveries(); }
+        }
+
+        function renderLogs(logs) {
+            const box = document.getElementById('liveLog');
+            const lines = [...logs].reverse().slice(-30).map(l => {
+                const cls = l.level === 'SUCCESS' ? 'log-success' : l.level === 'ERROR' ? 'log-error' : l.level === 'WARN' ? 'log-warn' : '';
+                return `<div class="log-line ${cls}">${escapeHtml(l.message)}</div>`;
+            }).join('');
+            box.innerHTML = lines || '<div class="log-line">// waiting for activity…</div>';
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function escapeHtml(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        async function jobAction(action) {
+            if (!activeJobId) return;
+            try {
+                await api.globalJobAction(activeJobId, action);
+                showToast(`Job ${action} accepted.`, 'info');
+                setTimeout(pollActiveJob, 800);
+            } catch (e) { showToast(e.message, 'error'); }
+        }
+
+        async function loadDiscoveries() {
+            try {
+                const params = {
+                    limit: PAGE_SIZE, skip: discPage * PAGE_SIZE,
+                    email_status: document.getElementById('statusFilter').value,
+                    q: document.getElementById('discSearch').value.trim(),
+                    job_id: new URLSearchParams(location.search).get('job') || '',
+                };
+                const data = await api.getGlobalDiscoveries(params);
+                const body = document.getElementById('discoveriesBody');
+                if (!data.discoveries.length) {
+                    body.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:22px;">Nothing matches this filter yet.</td></tr>';
+                } else {
+                    body.innerHTML = data.discoveries.map(d => `
+                        <tr>
+                            <td><b>${escapeHtml(d.business_name)}</b><br><small style="color:var(--text-muted);">${escapeHtml(d.business_type)}</small></td>
+                            <td><small>${flagEmoji(d.country_code)} ${escapeHtml(d.city || d.region || '')}<br>${escapeHtml(d.country_name)}</small></td>
+                            <td>${d.website_url ? `<a href="${escapeHtml(d.website_url)}" target="_blank" rel="noopener" style="max-width:180px; display:inline-block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom;">${escapeHtml(shortUrl(d.website_url))}</a>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+                            <td><span class="pill ${STATUS_PILLS[d.email_status] || 'pill-notan'}">${STATUS_LABELS[d.email_status] || d.email_status}</span></td>
+                            <td>${d.email ? `<a href="mailto:${escapeHtml(d.email)}" style="color:#059669; font-weight:600;">${escapeHtml(d.email)}</a>` : `<small style="color:var(--text-muted)">${escapeHtml(d.analysis_error || '—')}</small>`}</td>
+                            <td>${d.lead_id ? `<a href="lead-details.html?id=${d.lead_id}" class="badge badge-good">${d.lead_id}</a>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+                            <td>${d.rating ? `${d.rating} ★<br><small style="color:var(--text-muted)">${d.review_count || 0} reviews</small>` : '—'}</td>
+                        </tr>`).join('');
+                }
+                const totalPages = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
+                document.getElementById('pageInfo').textContent = `${data.total} total · page ${discPage + 1}/${totalPages}`;
+                document.getElementById('prevPageBtn').disabled = discPage === 0;
+                document.getElementById('nextPageBtn').disabled = discPage >= totalPages - 1;
+            } catch (e) { showToast(e.message, 'error'); }
+        }
+
+        function shortUrl(u) { try { return new URL(u).hostname.replace('www.',''); } catch { return u; } }
+        function flagEmoji(cc) {
+            if (!cc || cc.length !== 2) return '';
+            return String.fromCodePoint(...[...cc.toUpperCase()].map(ch => 127397 + ch.charCodeAt(0)));
+        }
+        function pageMove(delta) { discPage = Math.max(0, discPage + delta); loadDiscoveries(); }
+
+        async function loadJobs() {
+            try {
+                const jobs = await api.getGlobalJobs();
+                const body = document.getElementById('jobsBody');
+                if (!jobs.length) return;
+                body.innerHTML = jobs.map(j => `
+                    <tr>
+                        <td><b>${j.job_id}</b></td>
+                        <td><small>${escapeHtml(j.query)}</small></td>
+                        <td><span class="pill ${({Running:'pill-analyzing', Completed:'pill-found', Paused:'pill-unavail', Stopped:'pill-invalid', Failed:'pill-error'})[j.status] || 'pill-notan'}">${j.status.toUpperCase()}</span></td>
+                        <td>${j.discovered}</td><td>${j.websites_found}</td><td>${j.emails_found}</td>
+                        <td><b style="color:#2563eb;">${j.qualified_leads}</b></td><td>${j.skipped_no_email}</td>
+                        <td><small>${(j.created_at||'').slice(0,16).replace('T',' ')}</small></td>
+                        <td>
+                            ${j.status === 'Paused' ? `<button class="btn btn-secondary btn-sm" onclick="watchExisting('${j.job_id}')">Resume</button>` : ''}
+                            ${['Pending','Running'].includes(j.status) ? `<button class="btn btn-secondary btn-sm" onclick="watchExisting('${j.job_id}')">Watch</button>` : ''}
+                        </td>
+                    </tr>`).join('');
+            } catch (e) { /* silent */ }
+        }
+
+        function watchExisting(jobId) {
+            activeJobId = jobId;
+            watchJob(jobId);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        initMeta();
+        loadJobs();
+        loadDiscoveries();
+
+        // Auto-resume watching any still-running job after reload
+        (async () => {
+            try {
+                const jobs = await api.getGlobalJobs();
+                const running = jobs.find(j => ['Running', 'Paused', 'Pending'].includes(j.status));
+                if (running) watchJob(running.job_id);
+            } catch (e) {}
+        })();
+    </script>
+</body>
+</html>

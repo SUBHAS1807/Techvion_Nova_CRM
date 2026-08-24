@@ -13,11 +13,12 @@ from flask_cors import CORS
 from backend.database import engine, Base, run_migrations
 from backend.models import (
     Lead, OutreachActivity, WebsiteAnalysisRecord, CollectionJob,
-    CollectionLog, FollowUp, ApiUsageRecord
+    CollectionLog, FollowUp, ApiUsageRecord, DiscoveredBusiness
 )
 from backend.routes.leads import leads_bp
 from backend.routes.analyzer import analyzer_bp
 from backend.routes.google_places import google_places_bp
+from backend.routes.global_collect import global_bp
 
 # ── Ensure all database tables, columns & indexes exist ─────────────────
 run_migrations()
@@ -30,6 +31,7 @@ CORS(app)
 app.register_blueprint(leads_bp)
 app.register_blueprint(analyzer_bp)
 app.register_blueprint(google_places_bp)
+app.register_blueprint(global_bp)
 
 # ── Serve frontend static files ────────────────────────────────────────
 FRONTEND_DIR = os.path.join(

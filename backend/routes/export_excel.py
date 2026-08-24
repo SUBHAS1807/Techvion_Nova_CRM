@@ -82,7 +82,7 @@ def create_excel_report(leads) -> bytes:
     title_cell.alignment = Alignment(horizontal="left", vertical="center", indent=1)
     ws_leads.row_dimensions[1].height = 36
 
-    ws_leads.merge_cells("L1:AH1")
+    ws_leads.merge_cells("L1:AM1")
     meta_cell = ws_leads["L1"]
     meta_cell.value = f"Exported: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')} | Total Records: {len(leads)}"
     meta_cell.font = Font(name="Segoe UI", size=10, bold=False, color="94A3B8")
@@ -100,6 +100,10 @@ def create_excel_report(leads) -> bytes:
         "Owner Name",
         "Business Type",
         "City",
+        "Country",
+        "Region",
+        "State / Province",
+        "Postal Code",
         "Lead Source",
         "Phone",
         "Email",
@@ -116,6 +120,7 @@ def create_excel_report(leads) -> bytes:
         "Interested / Agreed",
         "Website Requirement",
         "Estimated Budget",
+        "Currency",
         "Proposal Status",
         "Deal Status",
         "Project Status",
@@ -158,6 +163,10 @@ def create_excel_report(leads) -> bytes:
             l.owner_name or "Unknown",
             l.business_type or "",
             l.city or "",
+            l.country or "",
+            l.region or "",
+            l.state_province or l.region or "",
+            l.postal_code or "",
             l.lead_source or "Google Places API",
             l.phone or "",
             l.email or "",
@@ -174,6 +183,7 @@ def create_excel_report(leads) -> bytes:
             l.interested_agreed or "Pending",
             l.website_requirement or "",
             l.estimated_budget or "",
+            l.currency or "",
             l.proposal_status or "Not Sent",
             l.deal_status or "Open",
             l.project_status or "Not Started",

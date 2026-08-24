@@ -206,5 +206,170 @@ class TestEmailExtractionPipeline(unittest.TestCase):
         print("[PASS] Test 18: /api/leads returns email + email_status fields")
 
 
+class TestWorldwideCollector(unittest.TestCase):
+    """Offline unit tests for the global (multi-country) collection engine."""
+
+    def setUp(self):
+        self.app = app.test_client()
+        self.app.testing = True
+
+    def test_19_geo_database_integrity_and_lookup(self):
+        from backend.geo_data import COUNTRIES, find_country
+        required = ("US", "GB", "CA", "AU", "IN", "DE", "FR", "IT", "ES",
+                    "BR", "MX", "JP", "KR", "SG", "AE", "SA", "ZA", "NZ")
+        for iso in required:
+            c = COUNTRIES.get(iso)
+            self.assertIsNotNone(c, f"{iso} missing from country DB")
+            for key in ("name", "iso2", "iso3", "phone_code", "currency"):
+                self.assertTrue(c[key], f"{iso}.{key} empty")
+        self.assertEqual(find_country("india")["iso2"], "IN")
+        self.assertEqual(find_country("usa")["iso2"], "US")
+        self.assertEqual(find_country("GBR")["name"], "United Kingdom")
+        print(f"[PASS] Test 19: Geo database integrity ({len(COUNTRIES)} countries, lookups OK)")
+
+    def test_20_international_phone_normalization(self):
+        from backend.geo_data import normalize_intl_phone
+        self.assertEqual(normalize_intl_phone("020 7946 0958", "GB"), "+442079460958")
+        self.assertEqual(normalize_intl_phone("+44 20 7946 0958", "GB"), "+442079460958")
+        self.assertEqual(normalize_intl_phone("(415) 555-2671", "US"), "+14155552671")
+        self.assertEqual(normalize_intl_phone("+91 98300 12345", "IN"), "+919830012345")
+        print("[PASS] Test 20: Phone numbers normalize to international format")
+
+    def test_21_search_chunk_builder_worldwide(self):
+        from backend.geo_data import build_search_chunks
+        chunks = build_search_chunks(["US", "GB", "JP"], "", "", "Cafe", "")
+        self.assertEqual(len(chunks), 3)
+        self.assertIn("Cafe in United States", chunks[0]["query"])
+        self.assertEqual(chunks[1]["country_iso2"], "GB")
+        # city+region refinement lands inside the query
+        ch2 = build_search_chunks(["FR"], "Île-de-France", "Paris", "Bakery", "")[0]
+        self.assertEqual(ch2["query"], "Bakery in Paris, Île-de-France, France")
+        # keyword overrides category
+        ch3 = build_search_chunks(["DE"], "", "", "Cafe", "wedding photographer")[0]
+        self.assertTrue(ch3["query"].startswith("wedding photographer in Germany"))
+        print("[PASS] Test 21: Worldwide chunk builder produces per-country targets")
+
+    def test_22_google_address_component_parser(self):
+        from backend.routes.global_collect import parse_address_components
+        place = {"addressComponents": [
+            {"longText": "1600 Amphitheatre Pkwy", "shortText": "1600 Amphitheatre Pkwy", "types": ["street_number"]},
+            {"longText": "Mountain View", "shortText": "Mountain View", "types": ["locality", "political"]},
+            {"longText": "California", "shortText": "CA", "types": ["administrative_area_level_1", "political"]},
+            {"longText": "94043", "shortText": "94043", "types": ["postal_code"]},
+            {"longText": "United States", "shortText": "US", "types": ["country", "political"]},
+        ]}
+        geo = parse_address_components(place)
+        self.assertEqual(geo["country_code"], "US")
+        self.assertEqual(geo["region"], "California")
+        self.assertEqual(geo["city"], "Mountain View")
+        self.assertEqual(geo["postal_code"], "94043")
+        print("[PASS] Test 22: addressComponents parsed into country/region/city/postal")
+
+    def test_23_analysis_results_map_to_email_statuses(self):
+        from backend.routes.global_collect import _apply_analysis_result
+        from backend.models import DiscoveredBusiness
+
+        def make_disc():
+            d = DiscoveredBusiness(place_id=f"T{datetime_now_ns()}", business_name="X")
+            return d
+
+        class FakeJob:
+            emails_found = 0
+            errors = 0
+
+        job = FakeJob()
+
+        d1 = make_disc()
+        _apply_analysis_result(None, d1, {"status_code": 200,
+                                          "primary_email": "Owner@Biz.com ",
+                                          "emails": ["owner@biz.com"],
+                                          "email_source_url": "https://biz.com/contact"},
+                               job)
+        self.assertEqual(d1.email_status, "EMAIL_FOUND")
+        self.assertEqual(d1.email, "owner@biz.com")
+
+        d2 = make_disc()
+        _apply_analysis_result(None, d2, {"status_code": 403, "blocked": True,
+                                          "error": "Website refused automated access"}, job)
+        self.assertEqual(d2.email_status, "WEBSITE_UNAVAILABLE")
+
+        d3 = make_disc()
+        _apply_analysis_result(None, d3, {"status_code": 200, "primary_email": "no-at-sign", "emails": []}, job)
+        self.assertEqual(d3.email_status, "EMAIL_NOT_FOUND")
+
+        d4 = make_disc()
+        _apply_analysis_result(None, d4, {"status_code": 0, "error": "Connection failed"}, job)
+        self.assertEqual(d4.email_status, "WEBSITE_UNAVAILABLE")
+        print("[PASS] Test 23: Analysis results map onto spec email_status enums")
+
+    def test_24_qualification_creates_lead_with_global_fields(self):
+        from backend.database import SessionLocal
+        from backend.models import DiscoveredBusiness, Lead
+        from backend.routes.global_collect import upsert_qualified_lead
+
+        db = SessionLocal()
+        try:
+            disc = DiscoveredBusiness(
+                place_id="TEST_QUALI_PLACE_1",
+                business_name="Global Test Bakery",
+                business_type="Bakery",
+                address="1 Rue de Test",
+                country_code="FR",
+                country_name="France",
+                region="Île-de-France",
+                city="Paris",
+                postal_code="75001",
+                phone_raw="01 23 45 67 89",
+                phone_intl="+33123456789",
+                website_url="https://globaltestbakery.fr",
+                has_website=True,
+                email="bonjour@globaltestbakery.fr",
+                email_source_page="https://globaltestbakery.fr/contact",
+                email_status="EMAIL_FOUND",
+            )
+            lead, action = upsert_qualified_lead(db, disc, None)
+            db.rollback()   # never persist test data
+            self.assertEqual(action, "created")
+            self.assertEqual(lead.email, "bonjour@globaltestbakery.fr")
+            self.assertEqual(lead.email_status, "Found")
+            self.assertEqual(lead.country, "France")
+            self.assertEqual(lead.country_code, "FR")
+            self.assertEqual(lead.currency, "EUR")     # derived from geo database
+            self.assertEqual(lead.state_province, "Île-de-France")
+            self.assertEqual(lead.phone, "+33123456789")
+            print("[PASS] Test 24: Qualified promotion fills global fields + currency")
+        finally:
+            db.close()
+
+    def test_25_global_meta_stats_export_endpoints(self):
+        resp = self.app.get('/api/global/meta')
+        self.assertEqual(resp.status_code, 200)
+        meta = resp.get_json()
+        self.assertGreaterEqual(len(meta["countries"]), 70)
+        self.assertGreaterEqual(len(meta["categories"]), 30)
+
+        resp_us = self.app.get('/api/global/meta?country=US')
+        meta_us = resp_us.get_json()
+        self.assertIn("California", meta_us["regions"])
+        self.assertIn("New York", meta_us["cities"])
+
+        resp_stats = self.app.get('/api/global/stats')
+        self.assertEqual(resp_stats.status_code, 200)
+        self.assertIn("funnel", resp_stats.get_json())
+
+        resp_exp = self.app.get('/api/leads/export/global/csv')
+        self.assertEqual(resp_exp.status_code, 200)
+        content = resp_exp.data.decode("utf-8")
+        self.assertIn("Country", content)
+        self.assertIn("Currency", content)
+        self.assertIn("TechvionNova_Global_Leads", resp_exp.headers.get("Content-Disposition", ""))
+        print("[PASS] Test 25: global meta/stats/qualified-export endpoints functional")
+
+
+def datetime_now_ns():
+    import time as _t
+    return str(_t.time_ns())
+
+
 if __name__ == "__main__":
     unittest.main()

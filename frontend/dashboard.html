@@ -99,8 +99,44 @@
                     </div>
                 </div>
 
+                <!-- 🌍 Worldwide Discovery Funnel (real-time from Global Collector) -->
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <h3 style="margin:0; font-size:15px;">🌍 Worldwide Collection</h3>
+                    <a href="global.html" class="btn btn-secondary btn-sm">Open Collector</a>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px;">
+                    <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Discovered</span>
+                        <strong style="font-size:15px;" id="g_discovered">0</strong>
+                    </div>
+                    <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Websites</span>
+                        <strong style="font-size:15px;" id="g_websites">0</strong>
+                    </div>
+                    <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Emails Found</span>
+                        <strong style="color:var(--success); font-size:15px;" id="g_emails">0</strong>
+                    </div>
+                    <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">★ Qualified</span>
+                        <strong style="color:var(--primary); font-size:15px;" id="g_qualified">0</strong>
+                    </div>
+                    <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Skipped (no email)</span>
+                        <strong style="color:var(--danger); font-size:15px;" id="g_no_email">0</strong>
+                    </div>
+                </div>
+
                 <!-- Clean Charts Breakdown Grid -->
                 <div class="chart-grid">
+                    <!-- Leads by Country -->
+                    <div class="chart-card">
+                        <div class="chart-card-title">🌍 Qualified Leads by Country</div>
+                        <div id="chartCountry">
+                            <div class="skeleton skeleton-text" style="width:100%;"></div>
+                        </div>
+                    </div>
+
                     <!-- Leads by City -->
                     <div class="chart-card">
                         <div class="chart-card-title">📍 Leads by Top Cities</div>
@@ -179,12 +215,20 @@
                 document.getElementById('kpi_active_projects').textContent = (cards.active_projects || 0).toLocaleString();
 
                 const charts = data.charts || {};
+                renderBarChart('chartCountry', charts.by_country || [], '#0d9488');
                 renderBarChart('chartCity', charts.by_city || [], '#2563eb');
                 renderBarChart('chartType', charts.by_type || [], '#10b981');
                 renderBarChart('chartWebStatus', charts.by_website_status || [], '#f59e0b');
                 renderBarChart('chartOutreach', charts.by_outreach || [], '#8b5cf6');
                 renderBarChart('chartDeal', charts.by_deal || [], '#0ea5e9');
                 renderBarChart('chartProject', charts.by_project || [], '#059669');
+
+                const g = data.global_funnel || {};
+                document.getElementById('g_discovered').textContent = (g.discovered || 0).toLocaleString();
+                document.getElementById('g_websites').textContent = (g.websites || 0).toLocaleString();
+                document.getElementById('g_emails').textContent = (g.emails || 0).toLocaleString();
+                document.getElementById('g_qualified').textContent = (g.qualified || 0).toLocaleString();
+                document.getElementById('g_no_email').textContent = ((g.no_email || 0) + (g.errors || 0)).toLocaleString();
             } catch (e) {
                 showToast(e.message, 'error');
             }

@@ -45,6 +45,15 @@ def run_migrations():
                 "email_source": "ALTER TABLE leads ADD COLUMN email_source VARCHAR(100)",
                 "email_source_url": "ALTER TABLE leads ADD COLUMN email_source_url VARCHAR(500)",
                 "email_status": "ALTER TABLE leads ADD COLUMN email_status VARCHAR(30) DEFAULT 'Not Analyzed'",
+                # Worldwide collection columns
+                "country": "ALTER TABLE leads ADD COLUMN country VARCHAR(100)",
+                "country_code": "ALTER TABLE leads ADD COLUMN country_code VARCHAR(2)",
+                "region": "ALTER TABLE leads ADD COLUMN region VARCHAR(120)",
+                "state_province": "ALTER TABLE leads ADD COLUMN state_province VARCHAR(120)",
+                "postal_code": "ALTER TABLE leads ADD COLUMN postal_code VARCHAR(20)",
+                "currency": "ALTER TABLE leads ADD COLUMN currency VARCHAR(8) DEFAULT 'INR'",
+                "other_socials": "ALTER TABLE leads ADD COLUMN other_socials TEXT",
+                "opening_hours": "ALTER TABLE leads ADD COLUMN opening_hours TEXT",
             }
             for col, ddl in migrations.items():
                 if col not in existing_cols:
@@ -52,6 +61,31 @@ def run_migrations():
                         conn.execute(text(ddl))
                     except Exception as e:
                         print(f"Migration notice ({col}): {e}")
+
+            # crawl_jobs global-collection columns
+            job_cols = [r[1] for r in conn.execute(text("PRAGMA table_info(crawl_jobs)"))]
+            if job_cols:
+                job_migrations = {
+                    "is_global": "ALTER TABLE crawl_jobs ADD COLUMN is_global BOOLEAN DEFAULT 0",
+                    "country": "ALTER TABLE crawl_jobs ADD COLUMN country VARCHAR(100)",
+                    "countries_json": "ALTER TABLE crawl_jobs ADD COLUMN countries_json TEXT",
+                    "region": "ALTER TABLE crawl_jobs ADD COLUMN region VARCHAR(120)",
+                    "keyword": "ALTER TABLE crawl_jobs ADD COLUMN keyword VARCHAR(200)",
+                    "radius_km": "ALTER TABLE crawl_jobs ADD COLUMN radius_km INTEGER",
+                    "discovered": "ALTER TABLE crawl_jobs ADD COLUMN discovered INTEGER DEFAULT 0",
+                    "websites_found": "ALTER TABLE crawl_jobs ADD COLUMN websites_found INTEGER DEFAULT 0",
+                    "emails_found": "ALTER TABLE crawl_jobs ADD COLUMN emails_found INTEGER DEFAULT 0",
+                    "qualified_leads": "ALTER TABLE crawl_jobs ADD COLUMN qualified_leads INTEGER DEFAULT 0",
+                    "skipped_no_email": "ALTER TABLE crawl_jobs ADD COLUMN skipped_no_email INTEGER DEFAULT 0",
+                    "pending_chunks": "ALTER TABLE crawl_jobs ADD COLUMN pending_chunks TEXT",
+                    "current_chunk": "ALTER TABLE crawl_jobs ADD COLUMN current_chunk VARCHAR(255)",
+                }
+                for col, ddl in job_migrations.items():
+                    if col not in job_cols:
+                        try:
+                            conn.execute(text(ddl))
+                        except Exception as e:
+                            print(f"Migration notice (crawl_jobs.{col}): {e}")
 
             # Create performance indexes
             indexes = [
@@ -68,6 +102,8 @@ def run_migrations():
                 "CREATE INDEX IF NOT EXISTS idx_leads_response_status ON leads(response_status)",
                 "CREATE INDEX IF NOT EXISTS idx_leads_deal_status ON leads(deal_status)",
                 "CREATE INDEX IF NOT EXISTS idx_leads_project_status ON leads(project_status)",
+                "CREATE INDEX IF NOT EXISTS idx_leads_country ON leads(country)",
+                "CREATE INDEX IF NOT EXISTS idx_leads_country_code ON leads(country_code)",
             ]
             for idx_sql in indexes:
                 try:

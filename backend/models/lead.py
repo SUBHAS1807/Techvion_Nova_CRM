@@ -28,6 +28,16 @@ class Lead(Base):
     # 6. City
     city = Column(String(100), nullable=False, index=True)
 
+    # ─── Global (Worldwide) Fields ──────────────────────────────────────
+    country = Column(String(100), nullable=True, index=True)
+    country_code = Column(String(2), nullable=True, index=True)   # ISO 3166-1 alpha-2
+    region = Column(String(120), nullable=True, index=True)       # Region / Province
+    state_province = Column(String(120), nullable=True, index=True)
+    postal_code = Column(String(20), nullable=True)
+    currency = Column(String(8), nullable=True, default="INR")
+    other_socials = Column(Text, nullable=True)                   # JSON array of URLs
+    opening_hours = Column(Text, nullable=True)                   # JSON array of strings
+
     # 7. Lead Source
     lead_source = Column(String(100), nullable=False, default="Google Places API", index=True)
 
@@ -158,6 +168,14 @@ class Lead(Base):
             "owner_name": self.owner_name or "Unknown",
             "business_type": self.business_type,
             "city": self.city,
+            "country": self.country or "",
+            "country_code": self.country_code or "",
+            "region": self.region or "",
+            "state_province": self.state_province or self.region or "",
+            "postal_code": self.postal_code or "",
+            "currency": self.currency or "",
+            "other_socials": json.loads(self.other_socials) if self.other_socials else [],
+            "opening_hours": json.loads(self.opening_hours) if self.opening_hours else [],
             "lead_source": self.lead_source,
             "phone": self.phone or "",
             "email": self.email or "",

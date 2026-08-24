@@ -1,4 +1,5 @@
 import os
+import json
 import time
 import io
 import csv
@@ -35,13 +36,15 @@ def _next_lead_id(db: Session) -> str:
 
 LEAD_FIELDS = [
     "is_marked", "business_name", "owner_name", "business_type", "city",
+    "country", "country_code", "region", "state_province", "postal_code",
+    "currency",
     "lead_source", "phone", "email", "email_source", "email_source_url", "images", "current_website",
     "instagram", "facebook", "website_status", "preferred_contact_channel",
     "first_contact_date", "outreach_status", "response_status",
     "interested_agreed", "website_requirement", "estimated_budget",
     "proposal_status", "deal_status", "project_status",
     "next_followup_date", "remarks", "source_url", "google_maps_url",
-    "google_place_id", "email_verification_status", "website_analysis",
+    "google_place_id", "email_verification_status", "email_status", "website_analysis",
     "lead_score", "address", "rating", "google_rating", "review_count",
     "google_reviews", "latitude", "longitude", "business_status", "is_demo",
 ]
@@ -721,6 +724,109 @@ def export_leads():
         db.close()
 
 
+# ── QUALIFIED WORLDWIDE EXPORT (email-verified leads only) ──────────────
+
+@leads_bp.route("/api/leads/export/global", methods=["GET"])
+@leads_bp.route("/api/leads/export/global/csv", methods=["GET"])
+@leads_bp.route("/api/leads/export/global/excel", methods=["GET"])
+def export_global_qualified():
+    """
+    Export ONLY qualified worldwide leads — businesses that carry a real,
+    publicly discovered email address. NO EMAIL = NOT EXPORTED. Ever.
+    """
+    if request.path.endswith("/excel"):
+        export_format = "excel"
+    else:
+        export_format = "csv"
+
+    country = request.args.get("country", "").strip()
+    db = SessionLocal()
+    try:
+        query = db.query(Lead).filter(
+            Lead.email.isnot(None), Lead.email != ""
+        )
+        if country:
+            query = query.filter(Lead.country_code == country.upper())
+        leads = query.order_by(Lead.country.asc(), Lead.lead_id.asc()).all()
+        date_str = datetime.now().strftime("%Y-%m-%d")
+
+        if export_format == "excel":
+            from backend.routes.export_excel import create_excel_report
+            xlsx_bytes = create_excel_report(leads)
+            filename = f"TechvionNova_Global_Leads_{date_str}.xlsx"
+            return Response(
+                xlsx_bytes,
+                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "X-Total-Count": str(len(leads)),
+                },
+            )
+
+        output = io.StringIO()
+        output.write("\ufeff")
+        writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+        writer.writerow([
+            "Lead ID", "Business Name", "Business Type", "Email",
+            "Email Source Page", "Phone", "Website",
+            "City", "State / Province", "Region", "Country",
+            "Postal Code", "Currency", "Address",
+            "Google Rating", "Reviews", "Google Maps URL",
+            "Instagram / Socials", "Opening Hours",
+            "Lead Score", "Exported At",
+        ])
+        exported_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+        for l in leads:
+            socials = []
+            if l.other_socials:
+                try:
+                    socials = json.loads(l.other_socials)
+                except Exception:
+                    socials = []
+            hours = []
+            if l.opening_hours:
+                try:
+                    hours = json.loads(l.opening_hours)
+                except Exception:
+                    hours = []
+            writer.writerow([
+                l.lead_id,
+                l.business_name or "",
+                l.business_type or "",
+                l.email or "",
+                getattr(l, "email_source_url", "") or "",
+                l.phone or "",
+                l.current_website or "",
+                l.city or "",
+                l.state_province or "",
+                l.region or "",
+                l.country or "",
+                l.postal_code or "",
+                l.currency or "",
+                l.address or "",
+                l.rating or l.google_rating or "",
+                l.review_count or l.google_reviews or "",
+                l.google_maps_url or l.source_url or "",
+                " | ".join(socials),
+                " | ".join(hours),
+                l.lead_score or 0,
+                exported_at,
+            ])
+
+        csv_content = output.getvalue()
+        filename = f"TechvionNova_Global_Leads_{date_str}.csv"
+        return Response(
+            csv_content.encode("utf-8-sig"),
+            mimetype="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "X-Total-Count": str(len(leads)),
+            },
+        )
+    finally:
+        db.close()
+
+
 # ── CSV IMPORT ──────────────────────────────────────────────────────────
 
 @leads_bp.route("/api/leads/import-csv", methods=["POST"])
@@ -851,6 +957,25 @@ def get_analytics():
         by_response = count_by_group(Lead.response_status)
         by_deal = count_by_group(Lead.deal_status)
         by_project = count_by_group(Lead.project_status)
+        by_country = count_by_group(Lead.country)[:12]
+
+        # Worldwide discovery funnel (real data from discovered_businesses)
+        global_funnel = {"discovered": 0, "websites": 0, "emails": 0,
+                         "qualified": 0, "no_email": 0, "errors": 0}
+        try:
+            from backend.models import DiscoveredBusiness
+            d = DiscoveredBusiness
+            global_funnel = {
+                "discovered": db.query(d).count(),
+                "websites": db.query(d).filter(d.has_website.is_(True)).count(),
+                "emails": db.query(d).filter(d.email_status == "EMAIL_FOUND").count(),
+                "qualified": db.query(d).filter(d.lead_id.isnot(None)).count(),
+                "no_email": db.query(d).filter(d.email_status == "EMAIL_NOT_FOUND").count(),
+                "errors": db.query(d).filter(
+                    d.email_status.in_(["ERROR", "WEBSITE_UNAVAILABLE", "INVALID_EMAIL"])).count(),
+            }
+        except Exception:
+            pass
 
         return jsonify({
             "cards": {
@@ -876,7 +1001,9 @@ def get_analytics():
                 "by_response": by_response,
                 "by_deal": by_deal,
                 "by_project": by_project,
+                "by_country": by_country,
             },
+            "global_funnel": global_funnel,
         })
     finally:
         db.close()

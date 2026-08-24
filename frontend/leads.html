@@ -634,6 +634,7 @@
             { id: 'owner', name: 'Owner', default: false },
             { id: 'type', name: 'Type', default: true },
             { id: 'city', name: 'City', default: true },
+            { id: 'country', name: 'Country', default: false },
             { id: 'phone', name: 'Phone', default: true },
             { id: 'email', name: 'Email', default: true },
             { id: 'website', name: 'Website', default: true },
@@ -877,6 +878,7 @@
                         <td data-col="owner" style="color:var(--text-secondary);">${esc(l.owner_name || 'Unknown')}</td>
                         <td data-col="type">${esc(l.business_type)}</td>
                         <td data-col="city">${esc(l.city)}</td>
+                        <td data-col="country"><span style="font-size:12px;">${l.country ? esc(l.country) : '<span style="color:var(--text-muted);">—</span>'}</span></td>
                         <td data-col="phone" style="font-family:var(--font-mono); font-size:12px;">${esc(l.phone || '—')}</td>
                         <td data-col="email">${emailHtml}</td>
                         <td data-col="website">${websiteHtml}</td>

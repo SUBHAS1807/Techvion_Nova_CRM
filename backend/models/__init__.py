@@ -6,6 +6,7 @@ from backend.models.crm_models import (
     CollectionLog,
     FollowUp,
     ApiUsageRecord,
+    DiscoveredBusiness,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "CollectionLog",
     "FollowUp",
     "ApiUsageRecord",
+    "DiscoveredBusiness",
 ]
