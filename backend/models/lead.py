@@ -125,6 +125,9 @@ class Lead(Base):
     # Email Verification Status: Not Checked, Valid Format, Invalid Format, Unknown
     email_verification_status = Column(String(30), default="Not Checked")
 
+    # Email Discovery Status: Not Analyzed, Found, Not Found, Invalid, Error
+    email_status = Column(String(30), default="Not Analyzed", index=True)
+
     # Email Source & URL: Google Places, Business Website, Manual, CSV, Other
     email_source = Column(String(100), nullable=True)
     email_source_url = Column(String(500), nullable=True)
@@ -160,6 +163,7 @@ class Lead(Base):
             "email": self.email or "",
             "email_source": self.email_source or "",
             "email_source_url": self.email_source_url or "",
+            "email_status": self.email_status or ("Found" if self.email else "Not Analyzed"),
             "images": self.images,
             "current_website": self.current_website or "",
             "instagram": self.instagram or "",

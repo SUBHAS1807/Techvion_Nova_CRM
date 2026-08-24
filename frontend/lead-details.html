@@ -324,11 +324,14 @@
             document.getElementById('d_status').textContent = l.business_status || 'OPERATIONAL';
 
             document.getElementById('d_phone').textContent = l.phone || '—';
+            const noEmailDetailMsg = l.email_status === 'Not Found'
+                ? '— No public business email found'
+                : (l.email_status === 'Error' ? '⚠ Website blocked analysis' : '○ Not analyzed');
             document.getElementById('d_email').innerHTML = l.email 
                 ? `<a href="mailto:${esc(l.email)}" style="color:var(--primary); font-weight:700; text-decoration:none;">${esc(l.email)}</a>` 
-                : '<span style="color:var(--text-muted); font-style:italic;">— No public business email found</span>';
+                : `<span style="color:var(--text-muted); font-style:italic;">${noEmailDetailMsg}</span>`;
             document.getElementById('d_email_source').textContent = l.email_source || (l.email ? 'Business Website' : '—');
-            document.getElementById('d_email_verif').textContent = l.email_verification_status || 'Not Checked';
+            document.getElementById('d_email_verif').textContent = l.email_status || l.email_verification_status || 'Not Analyzed';
             document.getElementById('d_ssl').textContent = l.current_website && l.current_website.startsWith('https') ? '✓ Valid (HTTPS)' : '—';
             if (l.email_source_url) {
                 document.getElementById('d_email_source_url_wrap').style.display = 'flex';

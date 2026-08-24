@@ -44,6 +44,7 @@ def run_migrations():
                 "is_demo": "ALTER TABLE leads ADD COLUMN is_demo BOOLEAN DEFAULT 0",
                 "email_source": "ALTER TABLE leads ADD COLUMN email_source VARCHAR(100)",
                 "email_source_url": "ALTER TABLE leads ADD COLUMN email_source_url VARCHAR(500)",
+                "email_status": "ALTER TABLE leads ADD COLUMN email_status VARCHAR(30) DEFAULT 'Not Analyzed'",
             }
             for col, ddl in migrations.items():
                 if col not in existing_cols:

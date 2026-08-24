@@ -46,22 +46,73 @@ IGNORE_EXTENSIONS = (
 )
 
 IGNORE_EMAIL_PREFIXES = (
-    "noreply", "no-reply", "donotreply", "do-not-reply", "privacy", "sentry",
-    "mailer-daemon", "postmaster", "webmaster", "security"
+    "noreply", "no-reply", "no_reply", "donotreply", "do-not-reply", "privacy", "sentry",
+    "mailer-daemon", "postmaster", "webmaster", "security", "username", "youremail",
+    "your-email", "email@example"
 )
 
 IGNORE_EMAIL_DOMAINS = (
-    "example.com", "domain.com", "yourdomain.com", "yoursite.com", "email.com",
-    "test.com", "sample.com", "wixpress.com", "wix.com", "squarespace.com",
-    "weebly.com", "godaddy.com", "cloudflare.com", "schema.org", "sentry.io",
-    "wordpress.com", "shopify.com", "google.com", "facebook.com", "instagram.com",
-    "github.com", "twitter.com", "linkedin.com", "gravatar.com"
+    "example.com", "example.in", "example.org", "example.net", "domain.com",
+    "domain.in", "yourdomain.com", "yourdomain.in", "yoursite.com", "mysite.com",
+    "sitename.com", "yourcompany.com", "yourwebsite.com", "email.com", "test.com",
+    "test.in", "sample.com", "samplecafe.in", "wixpress.com", "wix.com",
+    "wixsite.com", "squarespace.com", "weebly.com", "godaddy.com", "cloudflare.com",
+    "schema.org", "sentry.io", "sentry-next.wixpress.com", "wordpress.com",
+    "shopify.com", "google.com", "facebook.com", "instagram.com", "github.com",
+    "twitter.com", "x.com", "linkedin.com", "gravatar.com", "plusagency.com",
+    "superv.com"
 )
+
+# Common multi-part public suffixes used when computing the registrable root domain
+MULTIPART_SUFFIXES = ("co.uk", "com.au", "co.in", "net.in", "org.in", "firm.in",
+                      "ac.in", "edu.in", "gov.in", "res.in", "co.nz", "com.sg")
+
+HEX_HASH_LOCAL_RE = re.compile(r"^[0-9a-f]{16,}$", re.I)
 
 PRIORITY_PREFIXES = (
     "info@", "contact@", "hello@", "sales@", "office@", "booking@",
     "reservations@", "enquiry@", "inquiry@", "admin@", "support@", "help@", "service@"
 )
+
+# Link-text keywords for contact page discovery, in priority order
+CONTACT_LINK_KEYWORDS = (
+    "contact-us", "contactus", "contact", "reach-us", "reach", "get-in-touch",
+    "connect", "booking", "reservations", "about-us", "aboutus", "about"
+)
+
+
+def strip_invisible_html(html: str) -> str:
+    """
+    Remove HTML comments, <script>, <style> and <noscript> blocks so that
+    commented-out template credits, JS config blobs (Sentry DSNs, Wix internals)
+    and CSS never leak fake email candidates into the extractor.
+    """
+    html = re.sub(r"<!--.*?-->", " ", html, flags=re.S)
+    html = re.sub(r"<script\b[^>]*>.*?</script>", " ", html, flags=re.S | re.I)
+    html = re.sub(r"<style\b[^>]*>.*?</style>", " ", html, flags=re.S | re.I)
+    html = re.sub(r"<noscript\b[^>]*>.*?</noscript>", " ", html, flags=re.S | re.I)
+    return html
+
+
+def get_root_domain(domain: str | None) -> str | None:
+    """Reduce a hostname to its registrable root (handles co.in style suffixes)."""
+    if not domain:
+        return None
+    labels = domain.lower().rstrip(".").split(".")
+    if len(labels) >= 3 and ".".join(labels[-2:]) in MULTIPART_SUFFIXES:
+        return ".".join(labels[-3:])
+    if len(labels) >= 2:
+        return ".".join(labels[-2:])
+    return domain.lower()
+
+
+def domains_related(email_domain: str, site_domain: str | None) -> bool:
+    """True when the email domain belongs to the analyzed business's website."""
+    if not site_domain:
+        return False
+    site_root = get_root_domain(site_domain)
+    email_root = get_root_domain(email_domain)
+    return bool(site_root and email_root and email_root == site_root)
 
 
 def normalize_url(raw: str) -> str | None:
@@ -76,22 +127,27 @@ def normalize_url(raw: str) -> str | None:
     return raw
 
 
-def _clean_and_rank_emails(email_records: list[tuple[str, str]]) -> tuple[list[str], str | None, str | None]:
+def _clean_and_rank_emails(
+    email_records: list,
+    site_domain: str | None = None,
+) -> tuple[list[str], str | None, str | None]:
     """
-    Given a list of (email_candidate, source_page_url) tuples:
+    Given a list of (email_candidate, source_page_url, came_from_mailto) tuples:
     1. Normalize to lowercase and strip.
-    2. Filter out false-positive file extensions.
-    3. Filter out system / placeholder / dummy emails.
-    4. Prioritize canonical business contact addresses.
+    2. Filter out false-positive file extensions, hashes, and system/placeholder emails.
+    3. Rank by domain relevance to the analyzed website, mailto presence,
+       then canonical business contact prefixes.
     Returns: (cleaned_unique_emails, best_primary_email, best_email_source_url)
     """
-    valid_map: dict[str, str] = {}  # email -> source_url
+    valid_map: dict[str, tuple[str, bool]] = {}  # email -> (source_url, from_mailto)
 
-    for raw_email, src_url in email_records:
+    for raw_email, src_url, from_mailto in email_records:
         em = raw_email.strip().lower()
-        # Strip trailing punctuation
+        # Strip trailing/leading punctuation
         em = re.sub(r"[^\w@.-]+$", "", em)
         em = re.sub(r"^[^\w@.-]+", "", em)
+        # Dots are valid email chars but never at the very start/end (RFC 5322)
+        em = em.strip(".").strip("-")
 
         if "@" not in em or em.count("@") != 1:
             continue
@@ -99,57 +155,79 @@ def _clean_and_rank_emails(email_records: list[tuple[str, str]]) -> tuple[list[s
         local_part, domain_part = em.split("@", 1)
         if not local_part or not domain_part or "." not in domain_part:
             continue
+        if len(em) > 254 or len(local_part) > 64:
+            continue
 
-        # Ignore asset extension false positives
+        # Ignore asset extension false positives (e.g. logo.png@2x)
         if any(em.endswith(ext) for ext in IGNORE_EXTENSIONS):
             continue
 
-        # Ignore dummy / system prefixes
-        if any(local_part == p or local_part.startswith(p + "@") or local_part.startswith(p + "-") for p in IGNORE_EMAIL_PREFIXES):
+        # Ignore dummy / system prefixes (noreply@, privacy@, ...)
+        if any(
+            local_part == p or local_part.startswith(p + ".")
+            or local_part.startswith(p + "-") or local_part.startswith(p + "_")
+            for p in IGNORE_EMAIL_PREFIXES
+        ):
             continue
 
-        # Ignore template / placeholder domains
+        # Ignore hashed / machine-generated locals (Sentry DSN keys etc.)
+        if HEX_HASH_LOCAL_RE.match(local_part):
+            continue
+
+        # Ignore template / placeholder / platform domains
         if any(domain_part == d or domain_part.endswith("." + d) for d in IGNORE_EMAIL_DOMAINS):
             continue
 
-        if em not in valid_map:
-            valid_map[em] = src_url
+        prev = valid_map.get(em)
+        if prev is None or (from_mailto and not prev[1]):
+            valid_map[em] = (src_url, from_mailto)
 
     if not valid_map:
         return [], None, None
 
-    # Ranking function
-    def score_email(item: tuple[str, str]) -> int:
-        email_str = item[0]
+    def score_email(item) -> int:
+        email_str, (_, from_mailto) = item
         score = 0
+        domain = email_str.split("@", 1)[1]
+        if domains_related(domain, site_domain):
+            score += 100  # Email published on the business's own domain — strongest signal
+        if from_mailto:
+            score += 20   # Explicitly published as a clickable contact link
         for idx, pref in enumerate(PRIORITY_PREFIXES):
             if email_str.startswith(pref):
-                score += (len(PRIORITY_PREFIXES) - idx) * 10
+                score += max(len(PRIORITY_PREFIXES) - idx, 1) * 3
                 break
         return score
 
     sorted_pairs = sorted(valid_map.items(), key=score_email, reverse=True)
     cleaned_list = [p[0] for p in sorted_pairs][:5]
     primary_email = sorted_pairs[0][0]
-    primary_source_url = sorted_pairs[0][1]
+    primary_source_url = sorted_pairs[0][1][0]
 
     return cleaned_list, primary_email, primary_source_url
 
 
-def _extract_page_emails(soup: BeautifulSoup, html: str, page_url: str) -> list[tuple[str, str]]:
-    """Extract raw email candidates from text, HTML, and mailto: links."""
+def _extract_page_emails(soup: BeautifulSoup, html: str, page_url: str) -> list[tuple[str, str, bool]]:
+    """
+    Extract raw email candidates as (email, page_url, came_from_mailto) tuples.
+    `html` must already have comments/scripts/styles stripped by strip_invisible_html().
+    """
     candidates = []
-    # 1. mailto: links
+    # 1. mailto: links — the strongest public signal
     for a in soup.find_all("a", href=True):
         href = a["href"].strip()
         if href.lower().startswith("mailto:"):
             email_part = href[7:].split("?")[0].strip()
             if email_part:
-                candidates.append((email_part, page_url))
+                candidates.append((email_part, page_url, True))
+
+    # 2. Plain-text emails visible in the cleaned HTML
+    for m in EMAIL_RE.findall(html):
+        candidates.append((m, page_url, False))
 
     # 2. Text regex
     for m in EMAIL_RE.findall(html):
-        candidates.append((m, page_url))
+        candidates.append((m, page_url, False))
 
     return candidates
 
@@ -262,8 +340,9 @@ def compute_lead_score(website_status: str, analysis: dict) -> tuple[int, list[s
 
 def fetch_analysis(url: str) -> dict:
     """
-    Crawl website homepage and relevant subpages (Contact, About)
+    Crawl website homepage and relevant subpages (Contact, About, Booking)
     to discover public contact details, SSL certificate, responsiveness.
+    Only publicly accessible pages are read; anti-bot blocks are respected.
     """
     start = time.time()
     try:
@@ -272,59 +351,92 @@ def fetch_analysis(url: str) -> dict:
         try:
             resp = requests.get(url.replace("https://", "http://"), headers=HEADERS, timeout=12)
         except Exception as e2:
-            return {"url": url, "error": f"SSL error and fallback failed: {e2}", "status_code": 0}
+            return {"url": url, "error": f"SSL error and fallback failed: {e2}", "status_code": 0, "blocked": False}
     except requests.exceptions.ConnectionError:
-        return {"url": url, "error": "Connection failed — site may be down or unreachable", "status_code": 0}
+        return {"url": url, "error": "Connection failed — site may be down or unreachable", "status_code": 0, "blocked": False}
     except requests.exceptions.Timeout:
-        return {"url": url, "error": "Request timed out after 12s", "status_code": 0}
+        return {"url": url, "error": "Request timed out after 12s", "status_code": 0, "blocked": False}
     except Exception as e:
-        return {"url": url, "error": f"Request failed: {e}", "status_code": 0}
+        return {"url": url, "error": f"Request failed: {e}", "status_code": 0, "blocked": False}
 
     elapsed = round(time.time() - start, 2)
-    html = resp.text[:2_000_000]
+
+    # Anti-bot / access-control responses: respect them, never bypass (403/401/429)
+    if resp.status_code in (401, 403, 429):
+        return {
+            "url": url,
+            "final_url": resp.url,
+            "status_code": resp.status_code,
+            "error": f"Website refused automated access (HTTP {resp.status_code}). Public email discovery not possible.",
+            "blocked": True,
+        }
+
+    if resp.status_code in (404, 410):
+        return {"url": url, "final_url": str(resp.url), "status_code": resp.status_code,
+                "error": "Page not found (404)", "blocked": False}
+
+    raw_html = resp.text[:2_000_000]
+    # Remove comments/scripts/styles BEFORE parsing so template credits and
+    # JS config blobs never leak fake email candidates.
+    html = strip_invisible_html(raw_html)
     soup = BeautifulSoup(html, "html.parser")
 
     title = soup.title.string.strip() if soup.title and soup.title.string else None
     meta_desc_tag = soup.find("meta", attrs={"name": "description"})
     description = meta_desc_tag["content"].strip() if meta_desc_tag and meta_desc_tag.get("content") else None
 
-    imgs = soup.find_all("img")
+    imgs = BeautifulSoup(raw_html, "html.parser").find_all("img")
     missing_alt = sum(1 for i in imgs if not i.get("alt"))
 
     # Collect email candidates from homepage
     all_raw_emails = _extract_page_emails(soup, html, resp.url)
     all_raw_phones = _extract_page_phones(soup)
 
-    # Search contact / about subpages
+    # Search contact / about / booking subpages (limited, same-domain, prioritized)
+    site_netloc = urlparse(resp.url).netloc.lower()
+    site_domain_for_ranking = site_netloc[4:] if site_netloc.startswith("www.") else site_netloc
     subpages_checked = 0
-    max_subpages = 2
+    max_subpages = 4
     seen_urls = {resp.url.rstrip("/")}
 
+    page_links = []
     for a in soup.find_all("a", href=True):
+        href_raw = a["href"].strip()
+        if not href_raw or href_raw.lower().startswith(("mailto:", "tel:", "javascript:", "#")):
+            continue
+        target_sub = urljoin(resp.url, href_raw)
+        if urlparse(target_sub).netloc.lower() != site_netloc:
+            continue
+        norm_target = target_sub.rstrip("/")
+        if norm_target in seen_urls or norm_target.lower().endswith(IGNORE_EXTENSIONS):
+            continue
+        href_l = href_raw.lower()
+        prio = next((i for i, kw in enumerate(CONTACT_LINK_KEYWORDS) if kw in href_l), None)
+        if prio is not None:
+            page_links.append((prio, target_sub))
+
+    for _, target_sub in sorted(page_links)[:max_subpages]:
         if subpages_checked >= max_subpages:
             break
-        href = a["href"].strip().lower()
-        # Identify contact / about / reach-us links
-        if any(w in href for w in ["contact", "reach", "about", "get-in-touch", "location"]):
-            target_sub = urljoin(resp.url, a["href"].strip())
-            norm_target = target_sub.rstrip("/")
-            if norm_target in seen_urls:
-                continue
-            # Keep within same domain
-            if urlparse(target_sub).netloc.lower() == urlparse(resp.url).netloc.lower():
-                seen_urls.add(norm_target)
-                try:
-                    sub_resp = requests.get(target_sub, headers=HEADERS, timeout=6)
-                    if sub_resp.status_code == 200:
-                        sub_soup = BeautifulSoup(sub_resp.text[:1_000_000], "html.parser")
-                        all_raw_emails.extend(_extract_page_emails(sub_soup, sub_resp.text, target_sub))
-                        all_raw_phones.extend(_extract_page_phones(sub_soup))
-                        subpages_checked += 1
-                except Exception:
-                    pass
+        norm_target = target_sub.rstrip("/")
+        if norm_target in seen_urls:
+            continue
+        seen_urls.add(norm_target)
+        try:
+            sub_resp = requests.get(target_sub, headers=HEADERS, timeout=6)
+            if sub_resp.status_code == 200:
+                sub_html = strip_invisible_html(sub_resp.text[:1_000_000])
+                sub_soup = BeautifulSoup(sub_html, "html.parser")
+                all_raw_emails.extend(_extract_page_emails(sub_soup, sub_html, target_sub))
+                all_raw_phones.extend(_extract_page_phones(sub_soup))
+                subpages_checked += 1
+        except Exception:
+            pass
 
-    # Clean, rank, and prioritize emails
-    cleaned_emails, primary_email, email_source_url = _clean_and_rank_emails(all_raw_emails)
+    # Clean, rank, and prioritize emails — domain-aware
+    cleaned_emails, primary_email, email_source_url = _clean_and_rank_emails(
+        all_raw_emails, site_domain=site_domain_for_ranking
+    )
     all_phones = sorted(set(all_raw_phones))[:5]
 
     return {
@@ -377,8 +489,17 @@ def save_to_lead(lead_id: str, url: str, result: dict) -> bool:
 
         if result.get("error"):
             lead.website_analysis = json.dumps({"url": url, "error": result["error"]})
-            lead.website_status = "Broken"
-            lead.lead_score = 25
+            if result.get("blocked"):
+                # Anti-bot block: the site itself may be fine for humans.
+                # Do NOT mark it Broken; leave status/score untouched.
+                if not lead.email:
+                    lead.email_status = "Error"
+                    lead.email_verification_status = "Not Checked"
+            else:
+                lead.website_status = "Broken"
+                lead.lead_score = 25
+                if not lead.email:
+                    lead.email_status = "Error"
         else:
             payload = {k: v for k, v in result.items() if not k.startswith("_")}
             lead.website_analysis = json.dumps(payload)
@@ -394,15 +515,20 @@ def save_to_lead(lead_id: str, url: str, result: dict) -> bool:
             if socials.get("facebook") and not lead.facebook:
                 lead.facebook = socials["facebook"]
 
-            # Save discovered email to the existing lead
+            # Save discovered email to the EXISTING lead (never create a new one,
+            # never blank out an email that was already found)
             primary_email = result.get("primary_email") or (result.get("emails") or [None])[0]
             if primary_email:
                 lead.email = primary_email
                 lead.email_source = "Business Website"
                 lead.email_source_url = result.get("email_source_url") or url
                 lead.email_verification_status = "Valid Format"
+                lead.email_status = "Found"
             elif not lead.email:
+                # Analysis completed; site is publicly accessible but exposes no email
+                lead.email_source = lead.email_source or None
                 lead.email_verification_status = "Not Checked"
+                lead.email_status = "Not Found"
 
         # Log timeline
         db.add(OutreachActivity(

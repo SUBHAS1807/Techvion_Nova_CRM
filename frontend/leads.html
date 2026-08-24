@@ -832,7 +832,7 @@
                 `;
 
                 // Email Column with verification indicator & discovery source
-                let emailHtml = `<span class="email-none" style="color:var(--text-muted); font-size:12px;">Not analyzed</span>`;
+                let emailHtml;
                 if (l.email) {
                     emailHtml = `
                         <div class="email-cell" title="${esc(l.email)}">
@@ -843,10 +843,16 @@
                             </div>
                         </div>
                     `;
-                } else if (l.website_analysis) {
-                    emailHtml = `<span class="email-none" style="color:var(--text-muted); font-size:12px;">— No public email found</span>`;
                 } else if (!l.current_website) {
                     emailHtml = `<span class="email-none" style="color:var(--text-muted); font-size:12px;">— No website</span>`;
+                } else if (l.email_status === 'Not Found') {
+                    emailHtml = `<span class="email-none" style="color:var(--text-muted); font-size:12px;">— No public email found</span>`;
+                } else if (l.email_status === 'Error') {
+                    emailHtml = `<span class="email-none" style="color:#f59e0b; font-size:12px;">⚠ Website blocked analysis</span>`;
+                } else if (l.website_analysis && !l.email_status || l.email_status === 'Invalid') {
+                    emailHtml = `<span class="email-none" style="color:var(--text-muted); font-size:12px;">— No public email found</span>`;
+                } else {
+                    emailHtml = `<span class="email-none" style="color:var(--text-muted); font-size:12px;">○ Not analyzed</span>`;
                 }
 
                 // Website Column
@@ -1105,11 +1111,14 @@
                 document.getElementById('dr_place_id').innerHTML = lead.google_place_id ? `<code>${lead.google_place_id}</code>` : '—';
 
                 document.getElementById('dr_phone').textContent = lead.phone || '—';
-                document.getElementById('dr_email').innerHTML = lead.email 
+                const noEmailMsg = lead.email_status === 'Not Found'
+                    ? '— No public email found'
+                    : (lead.email_status === 'Error' ? '⚠ Website blocked analysis' : '○ Not analyzed');
+                document.getElementById('dr_email').innerHTML = lead.email
                     ? `<a href="mailto:${esc(lead.email)}" style="font-weight:600; color:var(--primary); text-decoration:none;">${esc(lead.email)}</a>`
-                    : '<span style="color:var(--text-muted); font-style:italic;">— No public email found</span>';
+                    : `<span style="color:var(--text-muted); font-style:italic;">${noEmailMsg}</span>`;
                 document.getElementById('dr_email_source').textContent = lead.email_source || (lead.email ? 'Business Website' : '—');
-                document.getElementById('dr_email_verif').textContent = lead.email_verification_status || 'Not Checked';
+                document.getElementById('dr_email_verif').textContent = lead.email_status || lead.email_verification_status || 'Not Analyzed';
                 document.getElementById('dr_instagram').textContent = lead.instagram || '—';
                 document.getElementById('dr_facebook').textContent = lead.facebook || '—';
 

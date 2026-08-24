@@ -529,6 +529,11 @@ def import_single_place():
         # Calculate initial lead score
         initial_score = 30 if not website else 15
 
+        # Google Places does NOT provide business emails. Only honor an email
+        # if the upstream source genuinely supplied one; never generate one.
+        place_email = (place.get("email") or "").strip()
+        place_email = place_email if "@" in place_email else ""
+
         new_lead = Lead(
             lead_id=lead_id,
             business_name=place.get("business_name") or "Unknown Business",
@@ -537,7 +542,8 @@ def import_single_place():
             city=place.get("city") or "Kolkata",
             lead_source="Google Places API",
             phone=place.get("phone") or "",
-            email="",  # Google does not provide email
+            email=place_email,
+            email_status="Not Analyzed",
             current_website=website,
             website_status=website_status,
             address=place.get("address") or "",
@@ -624,6 +630,8 @@ def import_bulk_places():
             else:
                 lead_id = _next_lead_id(db)
                 website = p.get("current_website") or p.get("website") or ""
+                bulk_email = (p.get("email") or "").strip()
+                bulk_email = bulk_email if "@" in bulk_email else ""
                 new_lead = Lead(
                     lead_id=lead_id,
                     business_name=p.get("business_name") or "Unknown Business",
@@ -632,7 +640,8 @@ def import_bulk_places():
                     city=p.get("city") or "Kolkata",
                     lead_source="Google Places API",
                     phone=p.get("phone") or "",
-                    email="",
+                    email=bulk_email,
+                    email_status="Not Analyzed",
                     current_website=website,
                     website_status="Good" if website else "No Website",
                     address=p.get("address") or "",
@@ -784,6 +793,7 @@ def _run_collection_worker(job_id: str, city: str, business_type: str, max_resul
                 google_place_id=place_id,
                 google_maps_url=p.get("googleMapsUri") or "",
                 source_url=p.get("googleMapsUri") or "",
+                email_status="Not Analyzed",
                 lead_score=30 if not website else 15,
                 remarks=f"Collected by Job {job_id} ({business_type}, {city})",
             )

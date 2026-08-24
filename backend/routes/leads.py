@@ -778,6 +778,8 @@ def import_csv():
                 continue
 
             lead_id = _next_lead_id(db)
+            # Only keep syntactically valid, actually-provided emails; never fabricate
+            email_valid = bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email)) if email else False
             lead = Lead(
                 lead_id=lead_id,
                 business_name=name,
@@ -786,7 +788,10 @@ def import_csv():
                 city=city,
                 lead_source=row.get("Lead Source") or "CSV Import",
                 phone=phone,
-                email=email,
+                email=email if email_valid else "",
+                email_source="CSV Import" if email_valid else None,
+                email_status="Found" if email_valid else ("Invalid" if email else "Not Analyzed"),
+                email_verification_status="Valid Format" if email_valid else ("Invalid Format" if email else "Not Checked"),
                 current_website=website,
                 website_status=row.get("Website Status") or ("Good" if website else "No Website"),
                 outreach_status=row.get("Outreach Status") or "Not Contacted",

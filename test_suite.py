@@ -116,5 +116,95 @@ class TestTechvionNovaCRM(unittest.TestCase):
         self.assertIsInstance(jobs, list)
         print(f"[PASS] Test 8: Collection jobs list returned {len(jobs)} jobs")
 
+
+class TestEmailExtractionPipeline(unittest.TestCase):
+    """Offline unit tests for the public-website email discovery engine."""
+
+    def setUp(self):
+        from backend.routes.analyzer import (
+            _clean_and_rank_emails, strip_invisible_html,
+            _extract_page_emails, get_root_domain,
+        )
+        from bs4 import BeautifulSoup
+        self.rank = _clean_and_rank_emails
+        self.strip = strip_invisible_html
+        self.extract = _extract_page_emails
+        self.soup = lambda h: BeautifulSoup(h, "html.parser")
+        self.root = get_root_domain
+        self.app = app.test_client()
+        self.app.testing = True
+
+    def test_10_commented_out_emails_are_stripped(self):
+        # Real case: indiancoffeehouse.in ships commented-out theme credits
+        html = '<!-- <a href="mailto:info@superv.com">info@superv.com</a> -->' \
+               '<a href="mailto:biz1958@gmail.com">biz1958@gmail.com</a>'
+        cleaned = self.strip(html)
+        emails, primary, _ = self.rank(self.extract(self.soup(cleaned), cleaned, "https://x.in"), site_domain="indiancoffeehouse.in")
+        self.assertEqual(primary, "biz1958@gmail.com")
+        self.assertNotIn("info@superv.com", emails)
+        print("[PASS] Test 10: HTML-comment template credits ignored")
+
+    def test_11_placeholder_domains_rejected(self):
+        recs = [("info@mysite.com", "https://site.com/", False),
+                ("tch.foods@gmail.com", "https://site.com/contact-us", True)]
+        _, primary, src = self.rank(recs, site_domain="thecountryhouse.in")
+        self.assertEqual(primary, "tch.foods@gmail.com")
+        self.assertIn("contact-us", (src or ""))
+        print("[PASS] Test 11: Placeholder domains (mysite.com) rejected; real mailto chosen")
+
+    def test_12_own_domain_email_wins_over_generic_prefix(self):
+        recs = [("info@someother.biz", "https://acme.co.in/", True),
+                ("hello@acme.co.in", "https://acme.co.in/about", False)]
+        _, primary, _ = self.rank(recs, site_domain="www.acme.co.in")
+        self.assertEqual(primary, "hello@acme.co.in")
+        print("[PASS] Test 12: Business's own-domain email outranks foreign info@ address")
+
+    def test_13_noreply_and_sentry_hashes_filtered(self):
+        recs = [("noreply@site.com", "u", False),
+                ("no-reply@site.com", "u", False),
+                ("9a65e97ebe8141fca0c4fd686f70996b@sentry.wixpress.com", "u", False),
+                ("e0b4d631da7b4200828051f7f9c783e3@sentry-next.wixpress.com", "u", False),
+                ("office@realbusiness.com", "u", False)]
+        _, primary, _ = self.rank(recs)
+        self.assertEqual(primary, "office@realbusiness.com")
+        print("[PASS] Test 13: noreply / sentry-hash junk filtered")
+
+    def test_14_no_email_generated_from_domain(self):
+        recs = []
+        emails, primary, _ = self.rank(recs, site_domain="roasterycoffee.co.in")
+        self.assertIsNone(primary)
+        self.assertEqual(emails, [])
+        print("[PASS] Test 14: No candidates => no fabricated email (NULL stays NULL)")
+
+    def test_15_normalization_and_syntax_validation(self):
+        recs = [("  HELLO@RealBusiness.COM. ", "u", False), ("bad-email-no-at", "u", False),
+                ("a@b", "u", False), ("x.png@2x", "u", False), ("hello@example.com", "u", False)]
+        emails, primary, _ = self.rank(recs)
+        self.assertEqual(emails, ["hello@realbusiness.com"])
+        print("[PASS] Test 15: Lowercase/trim normalization + syntax validation + placeholder rejection")
+
+    def test_16_script_style_js_blobs_never_yield_emails(self):
+        html = '<script>var dsn="https://abc123@sentry.io/1";</script>' \
+               '<style>.a{content:"x@y.com"}</style><p>Contact: team@realsite.in</p>'
+        cleaned = self.strip(html)
+        emails, primary, _ = self.rank(self.extract(self.soup(cleaned), cleaned, "https://realsite.in"), site_domain="realsite.in")
+        self.assertEqual(primary, "team@realsite.in")
+        self.assertNotIn("abc123@sentry.io", emails)
+        print("[PASS] Test 16: script/style blobs excluded from email scan")
+
+    def test_17_get_root_domain_handles_coin_suffixes(self):
+        self.assertEqual(self.root("www.acme.co.in"), "acme.co.in")
+        self.assertEqual(self.root("mail.example.org"), "example.org")
+        print("[PASS] Test 17: Root-domain computation handles co.in style suffixes")
+
+    def test_18_leads_api_exposes_email_status_fields(self):
+        resp = self.app.get('/api/leads?limit=1')
+        data = resp.get_json()
+        lead = data["leads"][0]
+        for field in ("email", "email_source", "email_source_url", "email_status"):
+            self.assertIn(field, lead)
+        print("[PASS] Test 18: /api/leads returns email + email_status fields")
+
+
 if __name__ == "__main__":
     unittest.main()

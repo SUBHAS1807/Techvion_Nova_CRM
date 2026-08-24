@@ -162,7 +162,7 @@ def create_excel_report(leads) -> bytes:
             l.phone or "",
             l.email or "",
             getattr(l, "email_source", "") or ("Business Website" if l.email else ""),
-            getattr(l, "email_verification_status", "") or "Not Checked",
+            getattr(l, "email_status", "") or getattr(l, "email_verification_status", "") or "Not Checked",
             l.current_website or "",
             l.instagram or "",
             l.facebook or "",
