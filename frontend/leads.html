@@ -66,6 +66,16 @@
                     </div>
                 </div>
 
+                <!-- CRM Pipeline Section Tabs -->
+                <div class="pipeline-tab-bar" style="display:flex; gap:8px; margin-bottom:16px; border-bottom:1px solid var(--border); padding-bottom:10px; overflow-x:auto; white-space:nowrap;">
+                    <button class="pipeline-tab active" data-section="collection" onclick="switchPipelineSection('collection', this)">1. Lead Collection (Uncontacted)</button>
+                    <button class="pipeline-tab" data-section="contacted" onclick="switchPipelineSection('contacted', this)">2. Contacted Leads</button>
+                    <button class="pipeline-tab" data-section="interested" onclick="switchPipelineSection('interested', this)">3. Interested Prospects</button>
+                    <button class="pipeline-tab" data-section="converted" onclick="switchPipelineSection('converted', this)">4. Converted Clients</button>
+                    <button class="pipeline-tab" data-section="lost" onclick="switchPipelineSection('lost', this)">5. Lost Leads</button>
+                    <button class="pipeline-tab" data-section="all" onclick="switchPipelineSection('all', this)">All Leads</button>
+                </div>
+
                 <!-- Search & Filter Card -->
                 <div class="filter-card">
                     <div class="filter-main-row">
@@ -179,10 +189,11 @@
                         <span id="selectedCount">0 Leads Selected</span>
                     </div>
                     <div class="bulk-right">
-                        <button class="btn btn-primary btn-sm" onclick="startBulkAnalysisModal()">🌐 Analyze Selected Websites</button>
+                        <button class="btn btn-primary btn-sm" onclick="bulkMoveToContacted()">📞 Move to Contacted Section</button>
+                        <button class="btn btn-secondary btn-sm" onclick="startBulkAnalysisModal()">🌐 Analyze Selected Websites</button>
                         <button class="btn btn-secondary btn-sm" onclick="triggerExport('csv', 'selected')">📄 Export CSV</button>
                         <button class="btn btn-secondary btn-sm" onclick="triggerExport('excel', 'selected')">📊 Export Excel</button>
-                        <button class="btn btn-secondary btn-sm" onclick="bulkChangeOutreach()">📞 Mark Contacted</button>
+                        <button class="btn btn-secondary btn-sm" onclick="bulkChangeOutreach()">📞 Set Status</button>
                         <button class="btn btn-secondary btn-sm" onclick="bulkSetFollowup()">📅 Set Follow-up</button>
                         <button class="btn btn-danger btn-sm" onclick="bulkDeleteSelected()">🗑 Delete</button>
                         <button class="btn btn-ghost btn-sm" onclick="deselectAll()">Deselect</button>
@@ -660,12 +671,36 @@
             ALL_COLUMNS.filter(c => c.default).map(c => c.id)
         );
 
+        let currentSection = 'collection';
+
+        function switchPipelineSection(sec, btn) {
+            currentSection = sec;
+            document.querySelectorAll('.pipeline-tab').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            else {
+                const b = document.querySelector(`.pipeline-tab[data-section="${sec}"]`);
+                if (b) b.classList.add('active');
+            }
+            const url = new URL(window.location);
+            if (sec && sec !== 'all') url.searchParams.set('section', sec);
+            else url.searchParams.delete('section');
+            window.history.pushState({}, '', url);
+
+            currentPage = 0;
+            loadLeads();
+        }
+
         async function init() {
             renderColumnCheckboxList();
             applyColumnVisibility();
 
             // Read URL search params (e.g. from sidebar quick links)
             const urlParams = new URLSearchParams(window.location.search);
+            const secParam = urlParams.get('section');
+            if (secParam) {
+                currentSection = secParam;
+                switchPipelineSection(secParam);
+            }
             if (urlParams.get('outreach')) {
                 document.getElementById('filterOutreach').value = urlParams.get('outreach');
             }
@@ -688,6 +723,21 @@
             }
             loadLeads();
             loadStats();
+        }
+
+        async function bulkMoveToContacted() {
+            if (!selectedLeadIds.size) return;
+            const method = prompt('Select contact method (Email / WhatsApp / Phone Call / Instagram / Facebook / LinkedIn / Other):', 'Email');
+            if (!method) return;
+            try {
+                await api.moveToContacted(Array.from(selectedLeadIds), method);
+                showToast(`${selectedLeadIds.size} leads moved to Contacted section!`, 'success');
+                selectedLeadIds.clear();
+                loadLeads();
+                loadStats();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
         }
 
         async function loadStats() {
@@ -758,6 +808,7 @@
             renderSkeletonTable();
 
             const params = {
+                section: currentSection,
                 skip: currentPage * pageSize,
                 limit: pageSize,
                 q,

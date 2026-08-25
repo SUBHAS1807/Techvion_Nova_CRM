@@ -891,9 +891,29 @@ button, input, select, textarea {
 /* Outreach Status Badges */
 .badge-not-contacted { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
 .badge-contacted { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-.badge-followup { background: var(--warning-bg); color: var(--warning-text); border: 1px solid var(--warning-border); }
+.badge-replied { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.badge-interested { background: #faf5ff; color: #6b21a8; border: 1px solid #e9d5ff; }
+.badge-not-interested { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.badge-no-response { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
+.badge-followup { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+.badge-meeting { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+.badge-proposal { background: #fae8ff; color: #86198f; border: 1px solid #f5d0fe; }
+.badge-negotiation { background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; }
+.badge-converted { background: #dcfce7; color: #166534; border: 1px solid #86efac; font-weight: 700; }
+.badge-lost { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
 .badge-completed { background: var(--success-bg); color: var(--success-text); border: 1px solid var(--success-border); }
 .badge-dnc { background: var(--danger-bg); color: var(--danger-text); border: 1px solid var(--danger-border); }
+
+/* Timing Status Badges */
+.badge-timing-overdue { background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; font-weight: 700; }
+.badge-timing-today { background: #eff6ff; color: #2563eb; border: 1px solid #93c5fd; font-weight: 700; }
+.badge-timing-tomorrow { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; }
+.badge-timing-week { background: #fefce8; color: #ca8a04; border: 1px solid #fef08a; }
+.badge-timing-upcoming { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+.badge-timing-none { background: #f1f5f9; color: #94a3b8; border: 1px solid #cbd5e1; }
+
+/* Contact Method Badge */
+.badge-method { background: #1e293b; color: #ffffff; border: 1px solid #0f172a; font-weight: 600; }
 
 /* Deal Status Badges */
 .badge-deal-open { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
@@ -1679,3 +1699,69 @@ button, input, select, textarea {
         grid-template-columns: 1fr;
     }
 }
+
+/* ── Pipeline Tab Bar ──────────────────────────────────────────────── */
+.pipeline-tab {
+    padding: 7px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    background: #ffffff;
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all var(--transition-fast);
+}
+.pipeline-tab:hover {
+    background: var(--surface-alt);
+    color: var(--text-primary);
+    border-color: var(--gray-300);
+}
+.pipeline-tab.active {
+    background: #0f172a;
+    color: #ffffff;
+    border-color: #0f172a;
+}
+
+/* ── Pagination Bar ─────────────────────────────────────────────────── */
+.pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    background: #ffffff;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+}
+
+/* ── Schedule Modal Overlay ─────────────────────────────────────────── */
+.modal-overlay.active {
+    display: flex;
+}
+
+/* ── Form Control (generic) ─────────────────────────────────────────── */
+.form-control {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    width: 100%;
+    background: #ffffff;
+    color: var(--text-primary);
+    box-sizing: border-box;
+}
+.form-control:focus {
+    outline: none;
+    border-color: #0f172a;
+    box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
+}
+textarea.form-control {
+    resize: vertical;
+    font-family: var(--font-sans);
+}
+select.form-control {
+    appearance: auto;
+}
+

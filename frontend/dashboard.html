@@ -76,26 +76,49 @@
                 </div>
 
                 <!-- Secondary Pipeline Counter Row -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px;">
                     <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">No Website</span>
                         <strong style="color:var(--danger); font-size:15px;" id="kpi_no_web">0</strong>
                     </div>
                     <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Outdated Sites</span>
-                        <strong style="color:var(--warning); font-size:15px;" id="kpi_outdated">0</strong>
+                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Follow-ups Today</span>
+                        <strong style="color:#2563eb; font-size:15px;" id="kpi_followups">0</strong>
+                    </div>
+                    <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:#991b1b; font-weight:600;">Overdue Follow-ups</span>
+                        <strong style="color:#dc2626; font-size:15px;" id="kpi_overdue">0</strong>
                     </div>
                     <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Follow-ups Due</span>
-                        <strong style="color:var(--warning); font-size:15px;" id="kpi_followups">0</strong>
+                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Meetings Scheduled</span>
+                        <strong style="color:#0369a1; font-size:15px;" id="kpi_meetings">0</strong>
                     </div>
                     <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Proposals Sent</span>
                         <strong style="color:var(--text-primary); font-size:15px;" id="kpi_proposals">0</strong>
                     </div>
+                    <div style="background:#dcfce7; border:1px solid #86efac; border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:#166534; font-weight:700;">Converted Clients</span>
+                        <strong style="color:#15803d; font-size:15px;" id="kpi_converted">0</strong>
+                    </div>
+                    <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Lost Leads</span>
+                        <strong style="color:var(--danger); font-size:15px;" id="kpi_lost">0</strong>
+                    </div>
                     <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">Active Projects</span>
                         <strong style="color:var(--primary); font-size:15px;" id="kpi_active_projects">0</strong>
+                    </div>
+                </div>
+
+                <!-- CRM Conversion Funnel Chart -->
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <h3 style="margin:0; font-size:15px;">📊 CRM Conversion Funnel</h3>
+                    <a href="followups.html" class="btn btn-secondary btn-sm">View Follow-Ups</a>
+                </div>
+                <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-lg); padding:20px; margin-bottom:24px;">
+                    <div id="funnelChart">
+                        <div style="font-size:12px; color:var(--text-muted); text-align:center; padding:20px;">Loading funnel data...</div>
                     </div>
                 </div>
 
@@ -220,11 +243,35 @@
                 document.getElementById('kpi_outdated').textContent = (cards.outdated_websites || 0).toLocaleString();
                 document.getElementById('kpi_emails').textContent = (cards.public_emails || 0).toLocaleString();
                 document.getElementById('kpi_contacted').textContent = (cards.contacted || 0).toLocaleString();
-                document.getElementById('kpi_followups').textContent = (cards.followups_due || 0).toLocaleString();
+                document.getElementById('kpi_followups').textContent = (cards.followups_due_today || cards.followups_due || 0).toLocaleString();
                 document.getElementById('kpi_interested').textContent = (cards.interested || 0).toLocaleString();
                 document.getElementById('kpi_proposals').textContent = (cards.proposals_sent || 0).toLocaleString();
-                document.getElementById('kpi_deals_won').textContent = (cards.deals_won || 0).toLocaleString();
+                document.getElementById('kpi_deals_won').textContent = (cards.converted_clients || cards.deals_won || 0).toLocaleString();
                 document.getElementById('kpi_active_projects').textContent = (cards.active_projects || 0).toLocaleString();
+
+                // Safely set optional KPI elements if they exist in page
+                const setEl = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+                setEl('kpi_overdue', (cards.overdue_followups || 0).toLocaleString());
+                setEl('kpi_meetings', (cards.meetings || 0).toLocaleString());
+                setEl('kpi_converted', (cards.converted_clients || 0).toLocaleString());
+                setEl('kpi_lost', (cards.lost_leads || 0).toLocaleString());
+
+                // Conversion Funnel
+                const funnel = data.funnel || [];
+                const funnelEl = document.getElementById('funnelChart');
+                if (funnelEl && funnel.length) {
+                    funnelEl.innerHTML = funnel.map(f => `
+                        <div style="margin-bottom:12px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                <span style="font-size:12px; font-weight:600; color:var(--text-primary);">${f.stage}</span>
+                                <span style="font-size:12px; font-weight:700; color:var(--text-secondary);">${f.count.toLocaleString()} (${f.pct}%)</span>
+                            </div>
+                            <div style="background:var(--surface-alt); border-radius:var(--radius-full); height:8px; overflow:hidden;">
+                                <div style="width:${f.pct}%; background:#0f172a; height:100%; border-radius:var(--radius-full); transition:width 0.5s;"></div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
 
                 const charts = data.charts || {};
                 renderBarChart('chartCountry', charts.by_country || [], '#0d9488');

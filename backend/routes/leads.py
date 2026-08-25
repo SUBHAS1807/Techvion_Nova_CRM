@@ -63,9 +63,38 @@ LEAD_FIELDS = [
     "google_place_id", "email_verification_status", "email_status", "website_analysis",
     "lead_score", "address", "rating", "google_rating", "review_count",
     "google_reviews", "latitude", "longitude", "business_status", "is_demo",
+    "contact_method", "last_contacted_date", "followup_count", "next_action",
 ]
 
-DATE_FIELDS = {"first_contact_date", "next_followup_date"}
+DATE_FIELDS = {"first_contact_date", "next_followup_date", "last_contacted_date"}
+
+
+def classify_followup_status(next_date: datetime | None, now: datetime | None = None) -> str:
+    """Classify follow-up date into human status: Overdue, Due Today, Tomorrow, This Week, Upcoming, No Follow-Up Date."""
+    if not next_date:
+        return "No Follow-Up Date"
+    if now is None:
+        now = datetime.now(timezone.utc)
+    
+    # Normalize comparison timezone
+    if next_date.tzinfo is None:
+        next_date = next_date.replace(tzinfo=timezone.utc)
+
+    today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    today_end = today_start + timedelta(days=1)
+    tomorrow_end = today_start + timedelta(days=2)
+    week_end = today_start + timedelta(days=7)
+
+    if next_date < today_start:
+        return "Overdue"
+    elif today_start <= next_date < today_end:
+        return "Due Today"
+    elif today_end <= next_date < tomorrow_end:
+        return "Tomorrow"
+    elif today_end <= next_date < week_end:
+        return "This Week"
+    else:
+        return "Upcoming"
 
 
 def _parse_payload(data: dict) -> dict:
@@ -84,7 +113,7 @@ def _parse_payload(data: dict) -> dict:
                     clean[f] = val if isinstance(val, datetime) else None
             elif f == "is_marked" or f == "is_demo":
                 clean[f] = bool(val)
-            elif f == "lead_score":
+            elif f in ("lead_score", "followup_count"):
                 try:
                     clean[f] = int(val)
                 except (ValueError, TypeError):
@@ -104,6 +133,171 @@ def _parse_payload(data: dict) -> dict:
     return clean
 
 
+def _apply_crm_filters(query, args: dict):
+    """Apply combined multi-dimensional CRM filters to an ORM query."""
+    # 1. Section Pipeline Filter
+    section = (args.get("section") or "").strip().lower()
+    if section == "collection":
+        query = query.filter(Lead.outreach_status == "Not Contacted")
+    elif section == "contacted":
+        query = query.filter(Lead.outreach_status != "Not Contacted")
+    elif section == "followup":
+        query = query.filter(
+            or_(
+                Lead.next_followup_date.isnot(None),
+                Lead.outreach_status.in_(["Follow-Up Required", "Contacted", "No Response", "Replied"])
+            )
+        )
+    elif section == "interested":
+        query = query.filter(
+            or_(
+                Lead.outreach_status.in_(["Interested", "Meeting Scheduled", "Proposal Sent", "Negotiation"]),
+                Lead.interested_agreed.in_(["Interested", "Agreed"])
+            )
+        )
+    elif section == "converted":
+        query = query.filter(or_(Lead.outreach_status == "Converted", Lead.deal_status == "Won"))
+    elif section == "lost":
+        query = query.filter(or_(Lead.outreach_status == "Lost", Lead.deal_status == "Lost"))
+
+    # 2. Search Query (q)
+    q = (args.get("q") or "").strip()
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            or_(
+                Lead.business_name.ilike(like),
+                Lead.owner_name.ilike(like),
+                Lead.lead_id.ilike(like),
+                Lead.city.ilike(like),
+                Lead.state_province.ilike(like),
+                Lead.region.ilike(like),
+                Lead.country.ilike(like),
+                Lead.phone.ilike(like),
+                Lead.email.ilike(like),
+                Lead.current_website.ilike(like),
+                Lead.address.ilike(like),
+                Lead.google_place_id.ilike(like),
+            )
+        )
+
+    # 3. Follow-Up Timing Status Filter
+    fu_status = (args.get("followup_status") or args.get("followup_filter") or args.get("filter") or "").strip().lower()
+    if fu_status and fu_status != "all":
+        now = datetime.now(timezone.utc)
+        today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+        today_end = today_start + timedelta(days=1)
+        tomorrow_end = today_start + timedelta(days=2)
+        week_end = today_start + timedelta(days=7)
+
+        if fu_status in ("today", "due_today", "due today"):
+            query = query.filter(Lead.next_followup_date >= today_start, Lead.next_followup_date < today_end)
+        elif fu_status == "overdue":
+            query = query.filter(Lead.next_followup_date < today_start)
+        elif fu_status == "tomorrow":
+            query = query.filter(Lead.next_followup_date >= today_end, Lead.next_followup_date < tomorrow_end)
+        elif fu_status in ("this_week", "this week", "week"):
+            query = query.filter(Lead.next_followup_date >= today_start, Lead.next_followup_date < week_end)
+        elif fu_status == "upcoming":
+            query = query.filter(Lead.next_followup_date >= week_end)
+        elif fu_status in ("no_date", "no_followup", "no follow-up date", "none"):
+            query = query.filter(Lead.next_followup_date.is_(None))
+
+    # 4. Contact Status / Outreach Status Filter
+    outreach_status = (args.get("outreach_status") or args.get("contact_status") or "").strip()
+    if outreach_status and outreach_status.lower() != "all":
+        query = query.filter(Lead.outreach_status.ilike(outreach_status))
+
+    # 5. Contact Method Filter
+    contact_method = (args.get("contact_method") or "").strip()
+    if contact_method and contact_method.lower() != "all":
+        query = query.filter(Lead.contact_method.ilike(contact_method))
+
+    # 6. Follow-Up Count Filter
+    fu_count = (args.get("followup_count") or "").strip().lower()
+    if fu_count and fu_count != "all":
+        if fu_count in ("1", "first", "first follow-up", "first follow-ups"):
+            query = query.filter(Lead.followup_count == 1)
+        elif fu_count in ("2", "second", "second follow-up", "second follow-ups"):
+            query = query.filter(Lead.followup_count == 2)
+        elif fu_count in ("3", "third", "third follow-up", "third follow-ups"):
+            query = query.filter(Lead.followup_count == 3)
+        elif fu_count in ("4+", "4", "plus", "4+ follow-ups", "4+ followups"):
+            query = query.filter(Lead.followup_count >= 4)
+
+    # 7. Date Filter (today, yesterday, last_7_days, last_30_days, custom)
+    date_filter = (args.get("date_filter") or "").strip().lower()
+    if date_filter and date_filter != "all":
+        now = datetime.now(timezone.utc)
+        today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+
+        # Target date column: last_contacted_date preferred, then first_contact_date, then created_at
+        date_col = func.coalesce(Lead.last_contacted_date, Lead.first_contact_date, Lead.created_at)
+
+        if date_filter == "today":
+            query = query.filter(date_col >= today_start)
+        elif date_filter == "yesterday":
+            query = query.filter(date_col >= today_start - timedelta(days=1), date_col < today_start)
+        elif date_filter in ("last_7_days", "7days", "7_days"):
+            query = query.filter(date_col >= today_start - timedelta(days=7))
+        elif date_filter in ("last_30_days", "30days", "30_days"):
+            query = query.filter(date_col >= today_start - timedelta(days=30))
+        elif date_filter == "custom":
+            start_str = args.get("start_date")
+            end_str = args.get("end_date")
+            if start_str:
+                try:
+                    s_dt = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+                    query = query.filter(date_col >= s_dt)
+                except Exception:
+                    pass
+            if end_str:
+                try:
+                    e_dt = datetime.fromisoformat(end_str.replace("Z", "+00:00")) + timedelta(days=1)
+                    query = query.filter(date_col < e_dt)
+                except Exception:
+                    pass
+
+    # 8. City, Business Type, Lead Source, Website Status
+    city = (args.get("city") or "").strip()
+    if city:
+        query = query.filter(Lead.city.ilike(city))
+
+    business_type = (args.get("business_type") or "").strip()
+    if business_type:
+        query = query.filter(Lead.business_type.ilike(business_type))
+
+    lead_source = (args.get("lead_source") or "").strip()
+    if lead_source:
+        query = query.filter(Lead.lead_source.ilike(lead_source))
+
+    website_status = (args.get("website_status") or "").strip()
+    if website_status:
+        machine_codes = {"NO_WEBSITE", "HAS_WEBSITE", "WEBSITE_INACCESSIBLE", "WEBSITE_UNKNOWN"}
+        if website_status.upper() in machine_codes:
+            query = query.filter(Lead.website_status_code == website_status.upper())
+        else:
+            query = query.filter(Lead.website_status == website_status)
+
+    response_status = (args.get("response_status") or "").strip()
+    if response_status:
+        query = query.filter(Lead.response_status == response_status)
+
+    deal_status = (args.get("deal_status") or "").strip()
+    if deal_status:
+        query = query.filter(Lead.deal_status == deal_status)
+
+    is_marked = args.get("is_marked")
+    if is_marked is not None and is_marked != "":
+        query = query.filter(Lead.is_marked == (is_marked.lower() in ("true", "1")))
+
+    is_demo = args.get("is_demo")
+    if is_demo is not None and is_demo != "":
+        query = query.filter(Lead.is_demo == (is_demo.lower() in ("true", "1")))
+
+    return query
+
+
 # ── LIST (Server-side paginated, filterable, sortable) ───────────────────
 
 @leads_bp.route("/api/leads", methods=["GET"])
@@ -114,65 +308,11 @@ def list_leads():
         limit = request.args.get("limit", 50, type=int)
         limit = min(max(limit, 1), 500)  # capped safety
 
-        # Search query
-        q = request.args.get("q", "").strip()
-
-        # Specific filters
-        city = request.args.get("city", "").strip()
-        business_type = request.args.get("business_type", "").strip()
-        lead_source = request.args.get("lead_source", "").strip()
-        website_status = request.args.get("website_status", "").strip()
-        outreach_status = request.args.get("outreach_status", "").strip()
-        response_status = request.args.get("response_status", "").strip()
-        deal_status = request.args.get("deal_status", "").strip()
-        is_marked = request.args.get("is_marked")
-        is_demo = request.args.get("is_demo")
         sort_by = request.args.get("sort_by", "lead_id")
         sort_order = request.args.get("sort_order", "desc")
 
         query = db.query(Lead)
-
-        if q:
-            like = f"%{q}%"
-            query = query.filter(
-                or_(
-                    Lead.business_name.ilike(like),
-                    Lead.owner_name.ilike(like),
-                    Lead.lead_id.ilike(like),
-                    Lead.city.ilike(like),
-                    Lead.phone.ilike(like),
-                    Lead.email.ilike(like),
-                    Lead.current_website.ilike(like),
-                    Lead.address.ilike(like),
-                    Lead.google_place_id.ilike(like),
-                )
-            )
-
-        if city:
-            query = query.filter(Lead.city.ilike(city))
-        if business_type:
-            query = query.filter(Lead.business_type.ilike(business_type))
-        if lead_source:
-            query = query.filter(Lead.lead_source.ilike(lead_source))
-        if website_status:
-            # Machine codes from the worldwide collector (NO_WEBSITE etc.)
-            # filter on website_status_code; legacy human values stay unchanged.
-            machine_codes = {"NO_WEBSITE", "HAS_WEBSITE", "WEBSITE_INACCESSIBLE",
-                             "WEBSITE_UNKNOWN"}
-            if website_status.upper() in machine_codes:
-                query = query.filter(Lead.website_status_code == website_status.upper())
-            else:
-                query = query.filter(Lead.website_status == website_status)
-        if outreach_status:
-            query = query.filter(Lead.outreach_status == outreach_status)
-        if response_status:
-            query = query.filter(Lead.response_status == response_status)
-        if deal_status:
-            query = query.filter(Lead.deal_status == deal_status)
-        if is_marked is not None and is_marked != "":
-            query = query.filter(Lead.is_marked == (is_marked.lower() in ("true", "1")))
-        if is_demo is not None and is_demo != "":
-            query = query.filter(Lead.is_demo == (is_demo.lower() in ("true", "1")))
+        query = _apply_crm_filters(query, request.args)
 
         total = query.count()
 
@@ -185,11 +325,17 @@ def list_leads():
 
         leads = query.offset(skip).limit(limit).all()
 
+        leads_list = []
+        for l in leads:
+            d = l.to_dict()
+            d["followup_timing_status"] = classify_followup_status(l.next_followup_date)
+            leads_list.append(d)
+
         return jsonify({
             "total": total,
             "skip": skip,
             "limit": limit,
-            "leads": [l.to_dict() for l in leads],
+            "leads": leads_list,
         })
     finally:
         db.close()
@@ -430,8 +576,26 @@ def bulk_action():
         leads = db.query(Lead).filter(Lead.lead_id.in_(ids)).all()
         count = 0
         for lead in leads:
-            if action == "outreach_status":
+            if action == "move_to_contacted":
+                lead.outreach_status = "Contacted"
+                if not lead.first_contact_date:
+                    lead.first_contact_date = datetime.now(timezone.utc)
+                lead.last_contacted_date = datetime.now(timezone.utc)
+                if value:
+                    lead.contact_method = value
+                db.add(OutreachActivity(
+                    lead_id=lead.lead_id,
+                    activity_type="Moved to Contacted Section",
+                    description=f"Lead moved to Contacted Leads (Contact Method: {lead.contact_method or 'General'})",
+                    result="Contacted",
+                    created_by="Bulk Action",
+                ))
+            elif action == "outreach_status":
                 lead.outreach_status = value
+                if value != "Not Contacted" and not lead.first_contact_date:
+                    lead.first_contact_date = datetime.now(timezone.utc)
+                if value != "Not Contacted":
+                    lead.last_contacted_date = datetime.now(timezone.utc)
                 db.add(OutreachActivity(
                     lead_id=lead.lead_id,
                     activity_type="Outreach Status Updated (Bulk)",
@@ -451,6 +615,8 @@ def bulk_action():
                         pass
                 else:
                     lead.next_followup_date = None
+            elif action == "contact_method":
+                lead.contact_method = value
             elif action == "mark":
                 lead.is_marked = bool(value)
             elif action == "website_requirement":
@@ -528,35 +694,128 @@ def add_timeline_entry(lead_id: str = None):
         db.close()
 
 
+# ── SCHEDULE FOLLOW-UP ──────────────────────────────────────────────────
+
+@leads_bp.route("/api/leads/<lead_id>/schedule-followup", methods=["POST"])
+def schedule_followup(lead_id: str):
+    data = request.get_json(force=True) or {}
+    f_date_str = data.get("followup_date") or data.get("next_followup_date")
+    f_time_str = data.get("followup_time", "09:00")
+    method = data.get("contact_method") or "Phone Call"
+    notes = data.get("notes") or data.get("followup_note") or ""
+    next_action = data.get("next_action") or ""
+    outreach_status = data.get("outreach_status")
+
+    db = SessionLocal()
+    try:
+        lead = db.query(Lead).filter(Lead.lead_id == lead_id).first()
+        if not lead:
+            return jsonify({"error": "Lead not found"}), 404
+
+        dt = None
+        if f_date_str:
+            try:
+                full_str = f"{f_date_str}T{f_time_str}:00" if "T" not in f_date_str else f_date_str
+                dt = datetime.fromisoformat(full_str.replace("Z", "+00:00"))
+            except Exception:
+                try:
+                    dt = datetime.fromisoformat(f_date_str)
+                except Exception:
+                    dt = None
+
+        now_utc = datetime.now(timezone.utc)
+
+        lead.next_followup_date = dt
+        lead.contact_method = method
+        if next_action:
+            lead.next_action = next_action
+        lead.last_contacted_date = now_utc
+        lead.followup_count = (lead.followup_count or 0) + 1
+
+        if not lead.first_contact_date:
+            lead.first_contact_date = now_utc
+
+        if outreach_status:
+            lead.outreach_status = outreach_status
+        elif lead.outreach_status in ("Not Contacted", None, ""):
+            lead.outreach_status = "Follow-Up Required"
+
+        if notes:
+            lead.remarks = notes if not lead.remarks else f"{lead.remarks}\n[{now_utc.strftime('%Y-%m-%d')}] {notes}"
+
+        lead.updated_at = now_utc
+
+        if dt:
+            db.add(FollowUp(
+                lead_id=lead_id,
+                scheduled_date=dt,
+                status="Pending",
+                notes=notes or next_action or f"Follow-up via {method}"
+            ))
+
+        act = OutreachActivity(
+            lead_id=lead_id,
+            activity_type=f"Follow-Up Scheduled ({method})",
+            description=f"Follow-up scheduled for {dt.strftime('%Y-%m-%d %H:%M') if dt else 'unspecified date'}. Note: {notes}. Next Action: {next_action}",
+            result=lead.outreach_status,
+            created_by="User",
+        )
+        db.add(act)
+
+        db.commit()
+        db.refresh(lead)
+
+        res_dict = lead.to_dict()
+        res_dict["followup_timing_status"] = classify_followup_status(lead.next_followup_date)
+        return jsonify(res_dict), 200
+    finally:
+        db.close()
+
+
 # ── FOLLOW-UPS ──────────────────────────────────────────────────────────
 
 @leads_bp.route("/api/followups", methods=["GET"])
 def get_followups():
-    filter_type = request.args.get("filter", "all")  # today, tomorrow, week, overdue, all
     db = SessionLocal()
     try:
-        now = datetime.now(timezone.utc)
-        today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
-        today_end = today_start + timedelta(days=1)
-        tomorrow_end = today_start + timedelta(days=2)
-        week_end = today_start + timedelta(days=7)
+        skip = request.args.get("skip", 0, type=int)
+        limit = request.args.get("limit", 100, type=int)
+        limit = min(max(limit, 1), 500)
 
-        query = db.query(Lead).filter(Lead.next_followup_date.isnot(None))
+        # Clone request args to apply section = followup if no section provided
+        args = dict(request.args)
+        if "section" not in args and "followup_status" not in args and "filter" not in args:
+            args["section"] = "followup"
 
-        if filter_type == "today":
-            query = query.filter(Lead.next_followup_date >= today_start, Lead.next_followup_date < today_end)
-        elif filter_type == "tomorrow":
-            query = query.filter(Lead.next_followup_date >= today_end, Lead.next_followup_date < tomorrow_end)
-        elif filter_type == "week":
-            query = query.filter(Lead.next_followup_date >= today_start, Lead.next_followup_date < week_end)
-        elif filter_type == "overdue":
-            query = query.filter(Lead.next_followup_date < today_start)
+        query = db.query(Lead)
+        query = _apply_crm_filters(query, args)
 
-        leads = query.order_by(Lead.next_followup_date.asc()).limit(200).all()
+        sort_by = request.args.get("sort_by", "next_followup_date")
+        sort_order = request.args.get("sort_order", "asc")
+        sort_col = getattr(Lead, sort_by, Lead.next_followup_date)
+
+        if sort_order.lower() == "desc":
+            query = query.order_by(desc(sort_col))
+        else:
+            query = query.order_by(asc(sort_col))
+
+        total = query.count()
+        leads = query.offset(skip).limit(limit).all()
+
+        result_leads = []
+        for l in leads:
+            d = l.to_dict()
+            d["followup_timing_status"] = classify_followup_status(l.next_followup_date)
+            result_leads.append(d)
+
         return jsonify({
-            "filter": filter_type,
-            "count": len(leads),
-            "followups": [l.to_dict() for l in leads],
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+            "count": len(result_leads),
+            "filter": args.get("followup_status") or args.get("filter") or "all",
+            "followups": result_leads,
+            "leads": result_leads,
         })
     finally:
         db.close()
@@ -580,16 +839,6 @@ def export_leads():
 
     mode = request.args.get("mode", "all")  # all, filtered, selected
     ids_param = request.args.get("ids", "")
-    q = request.args.get("q", "").strip()
-    city = request.args.get("city", "").strip()
-    business_type = request.args.get("business_type", "").strip()
-    lead_source = request.args.get("lead_source", "").strip()
-    website_status = request.args.get("website_status", "").strip()
-    outreach_status = request.args.get("outreach_status", "").strip()
-    response_status = request.args.get("response_status", "").strip()
-    deal_status = request.args.get("deal_status", "").strip()
-    is_marked = request.args.get("is_marked")
-    is_demo = request.args.get("is_demo")
 
     db = SessionLocal()
     try:
@@ -597,40 +846,8 @@ def export_leads():
         if mode == "selected" and ids_param:
             ids = [i.strip() for i in ids_param.split(",") if i.strip()]
             query = query.filter(Lead.lead_id.in_(ids))
-        elif mode == "filtered":
-            if q:
-                like = f"%{q}%"
-                query = query.filter(
-                    or_(
-                        Lead.business_name.ilike(like),
-                        Lead.owner_name.ilike(like),
-                        Lead.lead_id.ilike(like),
-                        Lead.city.ilike(like),
-                        Lead.phone.ilike(like),
-                        Lead.email.ilike(like),
-                        Lead.current_website.ilike(like),
-                        Lead.address.ilike(like),
-                        Lead.google_place_id.ilike(like),
-                    )
-                )
-            if city:
-                query = query.filter(Lead.city.ilike(city))
-            if business_type:
-                query = query.filter(Lead.business_type.ilike(business_type))
-            if lead_source:
-                query = query.filter(Lead.lead_source.ilike(lead_source))
-            if website_status:
-                query = query.filter(Lead.website_status == website_status)
-            if outreach_status:
-                query = query.filter(Lead.outreach_status == outreach_status)
-            if response_status:
-                query = query.filter(Lead.response_status == response_status)
-            if deal_status:
-                query = query.filter(Lead.deal_status == deal_status)
-            if is_marked is not None and is_marked != "":
-                query = query.filter(Lead.is_marked == (is_marked.lower() in ("true", "1")))
-            if is_demo is not None and is_demo != "":
-                query = query.filter(Lead.is_demo == (is_demo.lower() in ("true", "1")))
+        else:
+            query = _apply_crm_filters(query, request.args)
 
         leads = query.order_by(Lead.lead_id.asc()).all()
         date_str = datetime.now().strftime("%Y-%m-%d")
@@ -651,7 +868,7 @@ def export_leads():
 
         # ── Handle CSV Export (with UTF-8 BOM) ──────────────────────────
         output = io.StringIO()
-        # Write UTF-8 BOM so Excel on Windows/Mac properly parses Unicode/Bengali text
+        # Write UTF-8 BOM so Excel on Windows/Mac properly parses Unicode text
         output.write("\ufeff")
         writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
 
@@ -662,33 +879,26 @@ def export_leads():
             "Owner Name",
             "Business Type",
             "City",
+            "State / Province",
+            "Country",
             "Lead Source",
             "Phone",
             "Email",
-            "Email Source",
-            "Email Verification Status",
             "Current Website",
-            "Instagram",
-            "Facebook",
             "Website Status",
-            "Preferred Contact Channel",
-            "First Contact Date",
-            "Outreach Status",
+            "Contact Status (Outreach)",
+            "Contact Method",
             "Response Status",
-            "Interested / Agreed",
-            "Website Requirement",
-            "Estimated Budget",
-            "Proposal Status",
-            "Deal Status",
-            "Project Status",
-            "Next Follow-up Date",
+            "Follow-Up Date",
+            "Follow-Up Count",
+            "Last Contacted",
+            "Next Action",
             "Remarks",
             "Google Place ID",
             "Google Maps URL",
             "Address",
             "Rating",
             "Review Count",
-            "Business Status",
             "Lead Score",
             "Created At",
         ]
@@ -702,33 +912,26 @@ def export_leads():
                 l.owner_name or "Unknown",
                 l.business_type or "",
                 l.city or "",
+                l.state_province or l.region or "",
+                l.country or "",
                 l.lead_source or "Google Places API",
                 l.phone or "",
                 l.email or "",
-                getattr(l, "email_source", "") or ("Business Website" if l.email else ""),
-                getattr(l, "email_verification_status", "") or "Not Checked",
                 l.current_website or "",
-                l.instagram or "",
-                l.facebook or "",
                 _website_status_label(l),
-                l.preferred_contact_channel or "",
-                l.first_contact_date.strftime("%Y-%m-%d") if l.first_contact_date else "",
                 l.outreach_status or "Not Contacted",
+                l.contact_method or "",
                 l.response_status or "No Response",
-                l.interested_agreed or "Pending",
-                l.website_requirement or "",
-                l.estimated_budget or "",
-                l.proposal_status or "Not Sent",
-                l.deal_status or "Open",
-                l.project_status or "Not Started",
-                l.next_followup_date.strftime("%Y-%m-%d") if l.next_followup_date else "",
+                l.next_followup_date.strftime("%Y-%m-%d %H:%M") if l.next_followup_date else "",
+                l.followup_count or 0,
+                l.last_contacted_date.strftime("%Y-%m-%d %H:%M") if l.last_contacted_date else "",
+                l.next_action or "",
                 l.remarks or "",
                 l.google_place_id or "",
                 l.google_maps_url or l.source_url or "",
                 l.address or "",
                 l.rating or l.google_rating or "",
                 l.review_count or l.google_reviews or "",
-                l.business_status or "OPERATIONAL",
                 l.lead_score or 0,
                 l.created_at.strftime("%Y-%m-%d %H:%M") if l.created_at else "",
             ])
@@ -956,19 +1159,41 @@ def get_analytics():
         now = datetime.now(timezone.utc)
         today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
 
+        today_end = today_start + timedelta(days=1)
+
         total_leads = db.query(Lead).count()
         new_leads = db.query(Lead).filter(Lead.outreach_status == "Not Contacted").count()
+        contacted = db.query(Lead).filter(Lead.outreach_status != "Not Contacted").count()
         marked_leads = db.query(Lead).filter(Lead.is_marked == True).count()
-        no_website = db.query(Lead).filter(Lead.website_status == "No Website").count()
+        no_website = db.query(Lead).filter(or_(Lead.website_status == "No Website", Lead.website_status_code == "NO_WEBSITE")).count()
         outdated_websites = db.query(Lead).filter(Lead.website_status == "Outdated").count()
         public_emails = db.query(Lead).filter(Lead.email.isnot(None), Lead.email != "").count()
-        contacted = db.query(Lead).filter(Lead.outreach_status.in_(["Contacted", "Follow-up", "Completed"])).count()
-        followups_due = db.query(Lead).filter(Lead.next_followup_date <= (today_start + timedelta(days=1)), Lead.next_followup_date.isnot(None)).count()
-        interested = db.query(Lead).filter(Lead.interested_agreed.in_(["Interested", "Agreed"])).count()
-        proposals_sent = db.query(Lead).filter(Lead.proposal_status.in_(["Sent", "Accepted"])).count()
-        deals_won = db.query(Lead).filter(Lead.deal_status == "Won").count()
+
+        followups_due = db.query(Lead).filter(Lead.next_followup_date >= today_start, Lead.next_followup_date < today_end).count()
+        overdue_followups = db.query(Lead).filter(Lead.next_followup_date < today_start).count()
+
+        interested = db.query(Lead).filter(
+            or_(
+                Lead.outreach_status.in_(["Interested", "Meeting Scheduled", "Proposal Sent", "Negotiation"]),
+                Lead.interested_agreed.in_(["Interested", "Agreed"])
+            )
+        ).count()
+
+        meetings = db.query(Lead).filter(Lead.outreach_status == "Meeting Scheduled").count()
+        proposals_sent = db.query(Lead).filter(or_(Lead.proposal_status.in_(["Sent", "Accepted"]), Lead.outreach_status == "Proposal Sent")).count()
+        converted = db.query(Lead).filter(or_(Lead.outreach_status == "Converted", Lead.deal_status == "Won")).count()
+        lost_leads = db.query(Lead).filter(or_(Lead.outreach_status == "Lost", Lead.deal_status == "Lost")).count()
+
+        deals_won = converted
         active_projects = db.query(Lead).filter(Lead.project_status.in_(["Development", "Testing", "UI/UX Design", "Planning"])).count()
         delivered = db.query(Lead).filter(Lead.project_status == "Delivered").count()
+
+        funnel = [
+            {"stage": "Total Leads", "count": total_leads, "pct": 100.0},
+            {"stage": "Contacted", "count": contacted, "pct": round((contacted / total_leads * 100), 1) if total_leads else 0.0},
+            {"stage": "Interested", "count": interested, "pct": round((interested / total_leads * 100), 1) if total_leads else 0.0},
+            {"stage": "Converted", "count": converted, "pct": round((converted / total_leads * 100), 1) if total_leads else 0.0},
+        ]
 
         # Breakdown aggregations
         def count_by_group(col):
@@ -1021,12 +1246,19 @@ def get_analytics():
                 "public_emails": public_emails,
                 "contacted": contacted,
                 "followups_due": followups_due,
+                "followups_due_today": followups_due,
+                "overdue_followups": overdue_followups,
                 "interested": interested,
+                "interested_leads": interested,
+                "meetings": meetings,
                 "proposals_sent": proposals_sent,
+                "converted_clients": converted,
                 "deals_won": deals_won,
+                "lost_leads": lost_leads,
                 "active_projects": active_projects,
                 "delivered": delivered,
             },
+            "funnel": funnel,
             "charts": {
                 "by_city": by_city,
                 "by_type": by_type,

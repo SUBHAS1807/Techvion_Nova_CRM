@@ -3,86 +3,359 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Follow-up Tracking & Reminders – TechvionNova CRM">
-    <title>Follow-ups | TechvionNova CRM</title>
+    <meta name="description" content="TechvionNova CRM – Follow-Up Management Workspace">
+    <title>Follow-Up Management | TechvionNova CRM</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="css/style.css">
     <style>
-        .tab-bar {
-            display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid var(--border);
-            padding-bottom: 10px; flex-wrap: wrap;
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 12px;
+            background: #ffffff;
+            padding: 16px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-xs);
         }
-        .tab-btn {
-            background: #ffffff; border: 1px solid var(--border); padding: 7px 14px; font-weight: 600;
-            color: var(--text-secondary); cursor: pointer; border-radius: var(--radius-md);
-            font-size: 13px; transition: all var(--transition-fast); display: inline-flex; align-items: center; gap: 6px;
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
         }
-        .tab-btn:hover {
-            background: var(--surface-alt); color: var(--text-primary);
+        .filter-group label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-secondary);
         }
-        .tab-btn.active {
-            background: var(--primary); color: #ffffff; border-color: var(--primary);
+        .filter-input, .filter-select {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            background: #ffffff;
+            color: var(--text-primary);
+            width: 100%;
+        }
+        .filter-input:focus, .filter-select:focus {
+            border-color: #0f172a;
+            outline: none;
+        }
+        .custom-date-container {
+            display: none;
+            grid-column: 1 / -1;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 4px;
+            padding-top: 10px;
+            border-top: 1px dashed var(--border);
+        }
+        .table-action-btn {
+            padding: 4px 8px;
+            font-size: 11.5px;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: #ffffff;
+            color: var(--text-primary);
+            transition: all var(--transition-fast);
+        }
+        .table-action-btn:hover {
+            background: #0f172a;
+            color: #ffffff;
+            border-color: #0f172a;
+        }
+        .action-menu-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .action-menu-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background-color: #ffffff;
+            min-width: 170px;
+            box-shadow: var(--shadow-lg);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            z-index: 20;
+            padding: 4px 0;
+        }
+        .action-menu-content a, .action-menu-content button {
+            color: var(--text-primary);
+            padding: 8px 14px;
+            text-decoration: none;
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            width: 100%;
+            text-align: left;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+        }
+        .action-menu-content a:hover, .action-menu-content button:hover {
+            background-color: var(--surface-alt);
+        }
+        .action-menu-dropdown:hover .action-menu-content {
+            display: block;
+        }
+        .overdue-row {
+            background-color: #fff1f2 !important;
         }
     </style>
 </head>
 <body>
     <div class="app-layout" id="app">
-        <!-- Sidebar injected by JS -->
         <div class="main-wrapper">
-            <!-- Topbar injected by JS -->
             <div id="topbarContainer"></div>
 
             <main class="content-body">
-                <div class="tab-bar">
-                    <button class="tab-btn active" onclick="switchTab('today', this)">⏰ Today's Follow-ups</button>
-                    <button class="tab-btn" onclick="switchTab('overdue', this)">⚠️ Overdue</button>
-                    <button class="tab-btn" onclick="switchTab('tomorrow', this)">📆 Tomorrow</button>
-                    <button class="tab-btn" onclick="switchTab('week', this)">🗓️ This Week</button>
-                    <button class="tab-btn" onclick="switchTab('all', this)">All Follow-ups</button>
+                <!-- Filter Bar -->
+                <div class="filter-grid">
+                    <!-- Search -->
+                    <div class="filter-group" style="grid-column: span 2;">
+                        <label>Search Lead</label>
+                        <input type="text" id="filterSearch" class="filter-input" placeholder="Search business, email, phone, city, state, country..." oninput="debounceFilter()">
+                    </div>
+
+                    <!-- Follow-Up Status -->
+                    <div class="filter-group">
+                        <label>Follow-Up Status</label>
+                        <select id="filterFollowupStatus" class="filter-select" onchange="applyFilters()">
+                            <option value="all">All Follow-ups</option>
+                            <option value="today">Due Today</option>
+                            <option value="overdue">Overdue</option>
+                            <option value="tomorrow">Tomorrow</option>
+                            <option value="this_week">This Week</option>
+                            <option value="upcoming">Upcoming</option>
+                            <option value="no_date">No Follow-Up Date</option>
+                        </select>
+                    </div>
+
+                    <!-- Contact Status -->
+                    <div class="filter-group">
+                        <label>Contact Status</label>
+                        <select id="filterContactStatus" class="filter-select" onchange="applyFilters()">
+                            <option value="all">All Contact Statuses</option>
+                            <option value="Not Contacted">Not Contacted</option>
+                            <option value="Contacted">Contacted</option>
+                            <option value="Replied">Replied</option>
+                            <option value="Interested">Interested</option>
+                            <option value="Not Interested">Not Interested</option>
+                            <option value="No Response">No Response</option>
+                            <option value="Follow-Up Required">Follow-Up Required</option>
+                            <option value="Meeting Scheduled">Meeting Scheduled</option>
+                            <option value="Proposal Sent">Proposal Sent</option>
+                            <option value="Negotiation">Negotiation</option>
+                            <option value="Converted">Converted</option>
+                            <option value="Lost">Lost</option>
+                        </select>
+                    </div>
+
+                    <!-- Contact Method -->
+                    <div class="filter-group">
+                        <label>Contact Method</label>
+                        <select id="filterContactMethod" class="filter-select" onchange="applyFilters()">
+                            <option value="all">All Methods</option>
+                            <option value="Email">Email</option>
+                            <option value="WhatsApp">WhatsApp</option>
+                            <option value="Phone Call">Phone Call</option>
+                            <option value="Instagram">Instagram</option>
+                            <option value="Facebook">Facebook</option>
+                            <option value="LinkedIn">LinkedIn</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <!-- Follow-Up Count -->
+                    <div class="filter-group">
+                        <label>Follow-Up Count</label>
+                        <select id="filterFollowupCount" class="filter-select" onchange="applyFilters()">
+                            <option value="all">All Counts</option>
+                            <option value="1">First Follow-Up (1)</option>
+                            <option value="2">Second Follow-Up (2)</option>
+                            <option value="3">Third Follow-Up (3)</option>
+                            <option value="4+">4+ Follow-Ups</option>
+                        </select>
+                    </div>
+
+                    <!-- Date Filter -->
+                    <div class="filter-group">
+                        <label>Date Filter</label>
+                        <select id="filterDateRange" class="filter-select" onchange="handleDateRangeChange()">
+                            <option value="all">All Time</option>
+                            <option value="today">Today</option>
+                            <option value="yesterday">Yesterday</option>
+                            <option value="last_7_days">Last 7 Days</option>
+                            <option value="last_30_days">Last 30 Days</option>
+                            <option value="custom">Custom Date Range</option>
+                        </select>
+                    </div>
+
+                    <!-- Custom Date Container -->
+                    <div id="customDateContainer" class="custom-date-container">
+                        <div class="filter-group">
+                            <label>Start Date</label>
+                            <input type="date" id="filterStartDate" class="filter-input" onchange="applyFilters()">
+                        </div>
+                        <div class="filter-group">
+                            <label>End Date</label>
+                            <input type="date" id="filterEndDate" class="filter-input" onchange="applyFilters()">
+                        </div>
+                    </div>
                 </div>
 
+                <!-- Main Data Table -->
                 <div class="table-container">
                     <div class="table-responsive">
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Due Date</th>
-                                    <th>Lead ID</th>
                                     <th>Business</th>
-                                    <th>City</th>
-                                    <th>Phone</th>
-                                    <th>Outreach</th>
-                                    <th>Response</th>
-                                    <th>Remarks / Notes</th>
+                                    <th>Contact Status</th>
+                                    <th>Last Contacted</th>
+                                    <th>Follow-Up Date</th>
+                                    <th>Follow-Up Count</th>
+                                    <th>Next Action</th>
+                                    <th>Remarks</th>
                                     <th style="text-align: right;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="followupBody">
-                                <tr><td colspan="9" style="text-align:center; padding:24px;">Loading follow-ups…</td></tr>
+                                <tr><td colspan="8" style="text-align:center; padding:24px;">Loading follow-up pipeline...</td></tr>
                             </tbody>
                         </table>
+                    </div>
+                    <!-- Pagination Bar -->
+                    <div class="pagination-bar" id="paginationBar">
+                        <span id="pageInfo">Showing 0 of 0 follow-ups</span>
+                        <div style="display:flex; gap:8px;">
+                            <button class="btn btn-secondary btn-sm" id="prevPageBtn" onclick="changePage(-1)" disabled>Previous</button>
+                            <button class="btn btn-secondary btn-sm" id="nextPageBtn" onclick="changePage(1)" disabled>Next</button>
+                        </div>
                     </div>
                 </div>
             </main>
         </div>
     </div>
 
-    <!-- Quick Reschedule Modal -->
-    <div class="modal-overlay" id="rescheduleModal">
-        <div class="modal" style="max-width: 420px;">
+    <!-- Schedule Follow-Up Modal -->
+    <div class="modal-overlay" id="scheduleModal">
+        <div class="modal" style="max-width: 480px;">
             <div class="modal-header">
-                <h3>📅 Reschedule Follow-up</h3>
-                <button class="modal-close" onclick="closeRescheduleModal()">✕</button>
+                <h3>📅 Schedule Follow-Up</h3>
+                <button class="modal-close" onclick="closeScheduleModal()">✕</button>
             </div>
             <div class="modal-body">
-                <div class="form-group">
-                    <label>Select New Date</label>
-                    <input type="date" id="rescheduleDate">
-                </div>
+                <form id="scheduleForm" onsubmit="saveSchedule(event)">
+                    <input type="hidden" id="schedLeadId">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+                        <div class="form-group">
+                            <label>Follow-Up Date *</label>
+                            <input type="date" id="schedDate" required class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Follow-Up Time</label>
+                            <input type="time" id="schedTime" value="10:00" class="form-control">
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label>Contact Method *</label>
+                        <select id="schedMethod" class="form-control" required>
+                            <option value="Phone Call">Phone Call</option>
+                            <option value="Email">Email</option>
+                            <option value="WhatsApp">WhatsApp</option>
+                            <option value="Instagram">Instagram</option>
+                            <option value="Facebook">Facebook</option>
+                            <option value="LinkedIn">LinkedIn</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label>Next Action</label>
+                        <input type="text" id="schedNextAction" placeholder="e.g. Send website proposal PDF" class="form-control">
+                    </div>
+
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label>Follow-Up Note / Activity Details</label>
+                        <textarea id="schedNotes" rows="3" placeholder="Enter details of previous call or reason for follow-up..." class="form-control"></textarea>
+                    </div>
+
+                    <div class="modal-footer" style="padding:0; margin-top:16px;">
+                        <button type="button" class="btn btn-secondary" onclick="closeScheduleModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save & Update Lead</button>
+                    </div>
+                </form>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeRescheduleModal()">Cancel</button>
-                <button class="btn btn-primary" onclick="confirmReschedule()">Save Date</button>
+        </div>
+    </div>
+
+    <!-- Quick View / Edit Modal -->
+    <div class="modal-overlay" id="quickEditModal">
+        <div class="modal" style="max-width: 520px;">
+            <div class="modal-header">
+                <h3>✏️ Quick Edit Lead</h3>
+                <button class="modal-close" onclick="closeQuickEditModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <form id="quickEditForm" onsubmit="saveQuickEdit(event)">
+                    <input type="hidden" id="editLeadId">
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label>Business Name</label>
+                        <input type="text" id="editBusinessName" class="form-control" readonly style="background:var(--surface-alt);">
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+                        <div class="form-group">
+                            <label>Contact Status</label>
+                            <select id="editOutreachStatus" class="form-control">
+                                <option value="Not Contacted">Not Contacted</option>
+                                <option value="Contacted">Contacted</option>
+                                <option value="Replied">Replied</option>
+                                <option value="Interested">Interested</option>
+                                <option value="Not Interested">Not Interested</option>
+                                <option value="No Response">No Response</option>
+                                <option value="Follow-Up Required">Follow-Up Required</option>
+                                <option value="Meeting Scheduled">Meeting Scheduled</option>
+                                <option value="Proposal Sent">Proposal Sent</option>
+                                <option value="Negotiation">Negotiation</option>
+                                <option value="Converted">Converted</option>
+                                <option value="Lost">Lost</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Contact Method</label>
+                            <select id="editContactMethod" class="form-control">
+                                <option value="Email">Email</option>
+                                <option value="WhatsApp">WhatsApp</option>
+                                <option value="Phone Call">Phone Call</option>
+                                <option value="Instagram">Instagram</option>
+                                <option value="Facebook">Facebook</option>
+                                <option value="LinkedIn">LinkedIn</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label>Next Action</label>
+                        <input type="text" id="editNextAction" class="form-control">
+                    </div>
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label>Remarks</label>
+                        <textarea id="editRemarks" rows="3" class="form-control"></textarea>
+                    </div>
+                    <div class="modal-footer" style="padding:0; margin-top:16px;">
+                        <button type="button" class="btn btn-secondary" onclick="closeQuickEditModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -90,28 +363,82 @@
     <script src="js/api.js"></script>
     <script>
         const topActionsHtml = `
-            <a href="leads.html" class="btn btn-secondary btn-sm">${getIcon('leads')} Leads Table</a>
+            <a href="leads.html" class="btn btn-secondary btn-sm">${getIcon('leads')} All Leads</a>
+            <button class="btn btn-secondary btn-sm" onclick="exportData('csv')">Export CSV</button>
+            <button class="btn btn-primary btn-sm" onclick="exportData('excel')">Export Excel</button>
         `;
-        document.getElementById('topbarContainer').innerHTML = renderTopNav('Follow-ups & Reminders', 'Scheduled sales follow-ups and outreach reminders.', topActionsHtml);
+        document.getElementById('topbarContainer').innerHTML = renderTopNav('Follow-Up Workspace', 'Manage scheduled sales follow-ups and track communication history.', topActionsHtml);
         document.getElementById('app').insertAdjacentHTML('afterbegin', renderSidebar('followups'));
 
-        let currentFilter = 'today';
-        let reschedulingLeadId = null;
+        let currentPage = 1;
+        const pageSize = 50;
+        let debounceTimer = null;
+
+        function debounceFilter() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                currentPage = 1;
+                loadFollowups();
+            }, 300);
+        }
+
+        function handleDateRangeChange() {
+            const dateVal = document.getElementById('filterDateRange').value;
+            const container = document.getElementById('customDateContainer');
+            if (dateVal === 'custom') {
+                container.style.display = 'grid';
+            } else {
+                container.style.display = 'none';
+                applyFilters();
+            }
+        }
+
+        function applyFilters() {
+            currentPage = 1;
+            loadFollowups();
+        }
+
+        function getActiveFilterParams() {
+            const params = {
+                section: 'followup',
+                skip: (currentPage - 1) * pageSize,
+                limit: pageSize,
+                q: document.getElementById('filterSearch').value.trim(),
+                followup_status: document.getElementById('filterFollowupStatus').value,
+                contact_status: document.getElementById('filterContactStatus').value,
+                contact_method: document.getElementById('filterContactMethod').value,
+                followup_count: document.getElementById('filterFollowupCount').value,
+                date_filter: document.getElementById('filterDateRange').value,
+            };
+            if (params.date_filter === 'custom') {
+                params.start_date = document.getElementById('filterStartDate').value;
+                params.end_date = document.getElementById('filterEndDate').value;
+            }
+            return params;
+        }
 
         async function loadFollowups() {
             const tbody = document.getElementById('followupBody');
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:24px;">Loading…</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px;">Loading follow-ups...</td></tr>';
+            
             try {
-                const data = await api.getFollowups(currentFilter);
-                const items = data.followups || [];
+                const params = getActiveFilterParams();
+                const data = await api.getFollowupsAdvanced(params);
+                const items = data.followups || data.leads || [];
+                const total = data.total || items.length;
+
+                document.getElementById('pageInfo').innerText = `Showing ${items.length} of ${total} follow-ups`;
+                document.getElementById('prevPageBtn').disabled = currentPage <= 1;
+                document.getElementById('nextPageBtn').disabled = (currentPage * pageSize) >= total;
+
                 if (!items.length) {
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="9">
+                            <td colspan="8">
                                 <div class="empty-state">
                                     <div class="empty-icon-wrap">${getIcon('followups')}</div>
-                                    <div class="empty-title">No Follow-ups</div>
-                                    <div class="empty-desc">No follow-ups currently scheduled for <strong>${currentFilter}</strong>.</div>
+                                    <div class="empty-title">No Matching Follow-Ups</div>
+                                    <div class="empty-desc">No follow-ups match the selected filters. Try broadening your filter criteria.</div>
                                 </div>
                             </td>
                         </tr>
@@ -120,23 +447,56 @@
                 }
 
                 tbody.innerHTML = items.map(l => {
-                    const d = l.next_followup_date ? l.next_followup_date.substring(0, 10) : '—';
-                    const isOverdue = currentFilter === 'overdue' || (l.next_followup_date && new Date(l.next_followup_date) < new Date());
+                    const fuDateStr = l.next_followup_date ? l.next_followup_date.substring(0, 16).replace('T', ' ') : '—';
+                    const lastContactStr = l.last_contacted_date ? l.last_contacted_date.substring(0, 10) : (l.first_contact_date ? l.first_contact_date.substring(0, 10) : '—');
+                    const isOverdue = l.followup_timing_status === 'Overdue';
 
                     return `
-                        <tr>
-                            <td><strong style="color:${isOverdue ? 'var(--danger)' : 'var(--primary)'}; font-family:var(--font-mono); font-size:12.5px;">${d}</strong></td>
-                            <td><a href="leads.html?q=${l.lead_id}" style="font-weight:700; font-family:var(--font-mono); font-size:12px;">${l.lead_id}</a></td>
-                            <td><strong>${esc(l.business_name)}</strong></td>
-                            <td>${esc(l.city)}</td>
-                            <td style="font-family:var(--font-mono); font-size:12px;">${esc(l.phone || '—')}</td>
-                            <td>${outreachStatusBadge(l.outreach_status)}</td>
-                            <td><span style="font-size:12px; color:var(--text-secondary);">${esc(l.response_status || '—')}</span></td>
-                            <td style="font-size:12px; color:var(--text-secondary); max-width:240px; overflow:hidden; text-overflow:ellipsis;">${esc(l.remarks || '—')}</td>
+                        <tr class="${isOverdue ? 'overdue-row' : ''}">
+                            <td>
+                                <strong style="font-size:13.5px;">${esc(l.business_name)}</strong>
+                                <div style="font-size:11px; color:var(--text-secondary); margin-top:2px;">
+                                    ${esc(l.city)}${l.state_province ? ', ' + esc(l.state_province) : ''} • ${esc(l.email || l.phone || 'No direct contact')}
+                                </div>
+                            </td>
+                            <td>
+                                <div>${outreachStatusBadge(l.outreach_status)}</div>
+                                ${l.contact_method ? `<div style="margin-top:3px;">${contactMethodBadge(l.contact_method)}</div>` : ''}
+                            </td>
+                            <td style="font-size:12px; color:var(--text-secondary); font-family:var(--font-mono);">
+                                ${lastContactStr}
+                            </td>
+                            <td>
+                                ${followupTimingBadge(l.followup_timing_status)}
+                                <div style="font-size:11.5px; font-weight:600; font-family:var(--font-mono); margin-top:3px; color:${isOverdue ? 'var(--danger)' : 'var(--text-primary)'};">
+                                    ${fuDateStr}
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge" style="background:#f1f5f9; color:#0f172a; border:1px solid #cbd5e1; font-weight:700;">
+                                    #${l.followup_count || 0}
+                                </span>
+                            </td>
+                            <td style="font-size:12px; font-weight:500; max-width:180px; overflow:hidden; text-overflow:ellipsis;">
+                                ${esc(l.next_action || '—')}
+                            </td>
+                            <td style="font-size:12px; color:var(--text-secondary); max-width:200px; overflow:hidden; text-overflow:ellipsis;" title="${esc(l.remarks)}">
+                                ${esc(l.remarks || '—')}
+                            </td>
                             <td style="text-align: right;">
-                                <div style="display:inline-flex; gap:6px;">
-                                    <button class="btn btn-secondary btn-sm" onclick="openRescheduleModal('${l.lead_id}', '${d}')">Reschedule</button>
-                                    <button class="btn btn-primary btn-sm" onclick="markCompleted('${l.lead_id}')">Done ✓</button>
+                                <div style="display:inline-flex; gap:4px;">
+                                    <button class="table-action-btn" onclick="openScheduleModal('${l.lead_id}', '${l.next_followup_date || ''}', '${esc(l.contact_method || 'Phone Call')}', '${esc(l.next_action || '')}')" title="Schedule Follow-Up">📅 Schedule</button>
+                                    <div class="action-menu-dropdown">
+                                        <button class="table-action-btn">More ▾</button>
+                                        <div class="action-menu-content">
+                                            <a href="lead-details.html?id=${l.lead_id}">👁 View Details & History</a>
+                                            <button onclick="openQuickEditModal('${l.lead_id}', '${esc(l.business_name)}', '${l.outreach_status}', '${esc(l.contact_method)}', '${esc(l.next_action)}', '${esc(l.remarks)}')">✏️ Quick Edit</button>
+                                            <button onclick="quickUpdateStatus('${l.lead_id}', 'Completed')">✓ Mark Completed</button>
+                                            <button onclick="quickUpdateStatus('${l.lead_id}', 'Interested')">🔥 Move to Interested</button>
+                                            <button onclick="quickUpdateStatus('${l.lead_id}', 'Converted')">🤝 Move to Converted</button>
+                                            <button onclick="quickUpdateStatus('${l.lead_id}', 'Lost')" style="color:var(--danger);">✕ Mark Lost</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
@@ -147,49 +507,113 @@
             }
         }
 
+        function changePage(delta) {
+            currentPage += delta;
+            loadFollowups();
+        }
+
         function esc(str) {
             return String(str || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         }
 
-        function switchTab(filter, btn) {
-            currentFilter = filter;
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            loadFollowups();
+        // Schedule Modal Logic
+        function openScheduleModal(leadId, currentIsoDate, currentMethod, currentNextAction) {
+            document.getElementById('schedLeadId').value = leadId;
+            document.getElementById('schedMethod').value = currentMethod || 'Phone Call';
+            document.getElementById('schedNextAction').value = currentNextAction || '';
+            document.getElementById('schedNotes').value = '';
+            
+            if (currentIsoDate) {
+                const dateObj = new Date(currentIsoDate);
+                document.getElementById('schedDate').value = dateObj.toISOString().substring(0, 10);
+                document.getElementById('schedTime').value = dateObj.toTimeString().substring(0, 5);
+            } else {
+                document.getElementById('schedDate').value = new Date().toISOString().substring(0, 10);
+                document.getElementById('schedTime').value = '10:00';
+            }
+            
+            document.getElementById('scheduleModal').classList.add('active');
         }
 
-        function openRescheduleModal(leadId, currentDate) {
-            reschedulingLeadId = leadId;
-            document.getElementById('rescheduleDate').value = currentDate !== '—' ? currentDate : new Date().toISOString().substring(0, 10);
-            document.getElementById('rescheduleModal').classList.add('active');
+        function closeScheduleModal() {
+            document.getElementById('scheduleModal').classList.remove('active');
         }
 
-        function closeRescheduleModal() {
-            document.getElementById('rescheduleModal').classList.remove('active');
-            reschedulingLeadId = null;
-        }
+        async function saveSchedule(e) {
+            e.preventDefault();
+            const leadId = document.getElementById('schedLeadId').value;
+            const payload = {
+                followup_date: document.getElementById('schedDate').value,
+                followup_time: document.getElementById('schedTime').value,
+                contact_method: document.getElementById('schedMethod').value,
+                next_action: document.getElementById('schedNextAction').value.trim(),
+                notes: document.getElementById('schedNotes').value.trim(),
+                outreach_status: 'Follow-Up Required'
+            };
 
-        async function confirmReschedule() {
-            if (!reschedulingLeadId) return;
-            const newDate = document.getElementById('rescheduleDate').value;
             try {
-                await api.updateLead(reschedulingLeadId, { next_followup_date: newDate });
-                showToast('Follow-up rescheduled successfully', 'success');
-                closeRescheduleModal();
+                await api.scheduleFollowUp(leadId, payload);
+                showToast('Follow-up scheduled & updated successfully!', 'success');
+                closeScheduleModal();
                 loadFollowups();
-            } catch (e) {
-                showToast(e.message, 'error');
+            } catch (err) {
+                showToast(err.message, 'error');
             }
         }
 
-        async function markCompleted(leadId) {
+        // Quick Edit Modal Logic
+        function openQuickEditModal(leadId, bizName, outreachStatus, contactMethod, nextAction, remarks) {
+            document.getElementById('editLeadId').value = leadId;
+            document.getElementById('editBusinessName').value = bizName;
+            document.getElementById('editOutreachStatus').value = outreachStatus || 'Follow-Up Required';
+            document.getElementById('editContactMethod').value = contactMethod || 'Email';
+            document.getElementById('editNextAction').value = nextAction || '';
+            document.getElementById('editRemarks').value = remarks || '';
+            document.getElementById('quickEditModal').classList.add('active');
+        }
+
+        function closeQuickEditModal() {
+            document.getElementById('quickEditModal').classList.remove('active');
+        }
+
+        async function saveQuickEdit(e) {
+            e.preventDefault();
+            const leadId = document.getElementById('editLeadId').value;
+            const payload = {
+                outreach_status: document.getElementById('editOutreachStatus').value,
+                contact_method: document.getElementById('editContactMethod').value,
+                next_action: document.getElementById('editNextAction').value.trim(),
+                remarks: document.getElementById('editRemarks').value.trim(),
+            };
+
             try {
-                await api.updateLead(leadId, { outreach_status: 'Completed', next_followup_date: null });
-                showToast('Follow-up marked completed!', 'success');
+                await api.updateLead(leadId, payload);
+                showToast('Lead updated successfully', 'success');
+                closeQuickEditModal();
                 loadFollowups();
-            } catch (e) {
-                showToast(e.message, 'error');
+            } catch (err) {
+                showToast(err.message, 'error');
             }
+        }
+
+        async function quickUpdateStatus(leadId, newStatus) {
+            try {
+                await api.updateLead(leadId, { outreach_status: newStatus });
+                showToast(`Lead moved to ${newStatus}`, 'success');
+                loadFollowups();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        function exportData(format) {
+            const params = getActiveFilterParams();
+            const qs = new URLSearchParams();
+            for (const [k, v] of Object.entries(params)) {
+                if (v !== undefined && v !== null && v !== '') qs.set(k, v);
+            }
+            qs.set('format', format);
+            window.open(`${API_BASE}/api/leads/export?${qs.toString()}`, '_blank');
         }
 
         loadFollowups();

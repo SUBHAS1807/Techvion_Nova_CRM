@@ -101,6 +101,10 @@
                             </div>
                             <div class="drawer-grid">
                                 <div class="detail-field"><span class="detail-label">Outreach Status</span><span class="detail-val" id="d_outreach">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Contact Method</span><span class="detail-val" id="d_contact_method">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Last Contacted</span><span class="detail-val" id="d_last_contacted">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Follow-Up Count</span><span class="detail-val" id="d_followup_count">—</span></div>
+                                <div class="detail-field"><span class="detail-label">Next Action</span><span class="detail-val" id="d_next_action">—</span></div>
                                 <div class="detail-field"><span class="detail-label">Response Status</span><span class="detail-val" id="d_response">—</span></div>
                                 <div class="detail-field"><span class="detail-label">Interested / Agreed</span><span class="detail-val" id="d_interested">—</span></div>
                                 <div class="detail-field"><span class="detail-label">Proposal Status</span><span class="detail-val" id="d_proposal">—</span></div>
@@ -365,6 +369,10 @@
             document.getElementById('d_facebook').textContent = l.facebook || '—';
 
             document.getElementById('d_outreach').innerHTML = outreachStatusBadge(l.outreach_status);
+            document.getElementById('d_contact_method').innerHTML = contactMethodBadge(l.contact_method);
+            document.getElementById('d_last_contacted').textContent = l.last_contacted_date ? l.last_contacted_date.substring(0, 10) : (l.first_contact_date ? l.first_contact_date.substring(0, 10) : '—');
+            document.getElementById('d_followup_count').textContent = `#${l.followup_count || 0}`;
+            document.getElementById('d_next_action').textContent = l.next_action || '—';
             document.getElementById('d_response').textContent = l.response_status || 'No Response';
             document.getElementById('d_interested').textContent = l.interested_agreed || 'Pending';
             document.getElementById('d_proposal').textContent = l.proposal_status || 'Not Sent';

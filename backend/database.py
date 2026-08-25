@@ -56,6 +56,11 @@ def run_migrations():
                 "opening_hours": "ALTER TABLE leads ADD COLUMN opening_hours TEXT",
                 # Machine website status code (worldwide collector)
                 "website_status_code": "ALTER TABLE leads ADD COLUMN website_status_code VARCHAR(30)",
+                # Contacted CRM Upgrade columns
+                "contact_method": "ALTER TABLE leads ADD COLUMN contact_method VARCHAR(50)",
+                "last_contacted_date": "ALTER TABLE leads ADD COLUMN last_contacted_date DATETIME",
+                "followup_count": "ALTER TABLE leads ADD COLUMN followup_count INTEGER DEFAULT 0",
+                "next_action": "ALTER TABLE leads ADD COLUMN next_action VARCHAR(255)",
             }
             for col, ddl in migrations.items():
                 if col not in existing_cols:
@@ -133,6 +138,9 @@ def run_migrations():
                 "CREATE INDEX IF NOT EXISTS idx_leads_project_status ON leads(project_status)",
                 "CREATE INDEX IF NOT EXISTS idx_leads_country ON leads(country)",
                 "CREATE INDEX IF NOT EXISTS idx_leads_country_code ON leads(country_code)",
+                "CREATE INDEX IF NOT EXISTS idx_leads_contact_method ON leads(contact_method)",
+                "CREATE INDEX IF NOT EXISTS idx_leads_last_contacted ON leads(last_contacted_date)",
+                "CREATE INDEX IF NOT EXISTS idx_leads_followup_count ON leads(followup_count)",
             ]
             for idx_sql in indexes:
                 try:

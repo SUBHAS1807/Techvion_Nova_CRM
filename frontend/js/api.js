@@ -228,6 +228,21 @@ const api = {
         return data;
     },
 
+    async scheduleFollowUp(leadId, data) {
+        const res = await fetch(`${API_BASE}/api/leads/${leadId}/schedule-followup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Failed to schedule follow-up');
+        return json;
+    },
+
+    async moveToContacted(ids, contactMethod = 'Email') {
+        return this.bulkAction(ids, 'move_to_contacted', contactMethod);
+    },
+
     async bulkAction(ids, action, value) {
         const res = await fetch(`${API_BASE}/api/leads/bulk-action`, {
             method: 'POST',
@@ -256,6 +271,16 @@ const api = {
     // ── Follow-ups ───────────────────────────────────────────────────
     async getFollowups(filter = 'all') {
         const res = await fetch(`${API_BASE}/api/followups?filter=${filter}`);
+        return res.json();
+    },
+
+    async getFollowupsAdvanced(params = {}) {
+        const qs = new URLSearchParams();
+        for (const [k, v] of Object.entries(params)) {
+            if (v !== undefined && v !== null && v !== '') qs.set(k, v);
+        }
+        const res = await fetch(`${API_BASE}/api/followups?${qs.toString()}`);
+        if (!res.ok) throw new Error('Failed to load follow-ups');
         return res.json();
     },
 
@@ -398,17 +423,40 @@ function outreachStatusBadge(status) {
     const s = status || 'Not Contacted';
     let cls = 'badge-not-contacted';
     if (s === 'Contacted') cls = 'badge-contacted';
-    else if (s === 'Follow-up') cls = 'badge-followup';
-    else if (s === 'Completed') cls = 'badge-completed';
-    else if (s === 'Do Not Contact') cls = 'badge-dnc';
+    else if (s === 'Replied') cls = 'badge-replied';
+    else if (s === 'Interested') cls = 'badge-interested';
+    else if (s === 'Not Interested') cls = 'badge-not-interested';
+    else if (s === 'No Response') cls = 'badge-no-response';
+    else if (s === 'Follow-Up Required' || s === 'Follow-up') cls = 'badge-followup';
+    else if (s === 'Meeting Scheduled') cls = 'badge-meeting';
+    else if (s === 'Proposal Sent') cls = 'badge-proposal';
+    else if (s === 'Negotiation') cls = 'badge-negotiation';
+    else if (s === 'Converted' || s === 'Completed') cls = 'badge-converted';
+    else if (s === 'Lost' || s === 'Do Not Contact') cls = 'badge-lost';
     return `<span class="badge ${cls}">${s}</span>`;
+}
+
+function followupTimingBadge(timingStatus) {
+    const t = timingStatus || 'No Follow-Up Date';
+    let cls = 'badge-timing-none';
+    if (t === 'Overdue') cls = 'badge-timing-overdue';
+    else if (t === 'Due Today') cls = 'badge-timing-today';
+    else if (t === 'Tomorrow') cls = 'badge-timing-tomorrow';
+    else if (t === 'This Week') cls = 'badge-timing-week';
+    else if (t === 'Upcoming') cls = 'badge-timing-upcoming';
+    return `<span class="badge ${cls}">${t}</span>`;
+}
+
+function contactMethodBadge(method) {
+    const m = method || 'Other';
+    return `<span class="badge badge-method">${m}</span>`;
 }
 
 function dealStatusBadge(status) {
     const s = status || 'Open';
     let cls = 'badge-deal-open';
     if (s === 'Negotiation') cls = 'badge-deal-negotiation';
-    else if (s === 'Won') cls = 'badge-deal-won';
+    else if (s === 'Won' || s === 'Converted') cls = 'badge-deal-won';
     else if (s === 'Lost') cls = 'badge-deal-lost';
     return `<span class="badge ${cls}">${s}</span>`;
 }
@@ -427,18 +475,44 @@ function renderSidebar(activePage) {
             <div class="logo-box">T</div>
             <div class="brand-details">
                 <h1>TechvionNova</h1>
-                <small>Google Places CRM</small>
+                <small>CRM & Sales Pipeline</small>
             </div>
         </div>
         <nav class="sidebar-nav">
-            <div class="nav-section-title">Main</div>
-            <a href="leads.html" class="nav-link ${activePage === 'leads' ? 'active' : ''}">
-                <span class="nav-icon">${getIcon('leads')}</span>
-                <span>Leads</span>
-            </a>
+            <div class="nav-section-title">Dashboard & Funnel</div>
             <a href="dashboard.html" class="nav-link ${activePage === 'dashboard' ? 'active' : ''}">
                 <span class="nav-icon">${getIcon('dashboard')}</span>
-                <span>Dashboard</span>
+                <span>Dashboard Analytics</span>
+            </a>
+
+            <div class="nav-section-title">CRM Pipeline</div>
+            <a href="leads.html?section=collection" class="nav-link ${activePage === 'collection' ? 'active' : ''}">
+                <span class="nav-icon">${getIcon('leads')}</span>
+                <span>1. Lead Collection</span>
+            </a>
+            <a href="leads.html?section=contacted" class="nav-link ${activePage === 'contacted' ? 'active' : ''}">
+                <span class="nav-icon">${getIcon('outreach')}</span>
+                <span>2. Contacted Leads</span>
+            </a>
+            <a href="followups.html" class="nav-link ${activePage === 'followups' ? 'active' : ''}">
+                <span class="nav-icon">${getIcon('followups')}</span>
+                <span>3. Follow-Up Workspace</span>
+            </a>
+            <a href="leads.html?section=interested" class="nav-link ${activePage === 'interested' ? 'active' : ''}">
+                <span class="nav-icon">${getIcon('proposals')}</span>
+                <span>4. Interested Prospects</span>
+            </a>
+            <a href="leads.html?section=converted" class="nav-link ${activePage === 'converted' ? 'active' : ''}">
+                <span class="nav-icon">${getIcon('deals')}</span>
+                <span>5. Converted Clients</span>
+            </a>
+            <a href="leads.html?section=lost" class="nav-link ${activePage === 'lost' ? 'active' : ''}">
+                <span class="nav-icon">${getIcon('filter')}</span>
+                <span>Lost Leads</span>
+            </a>
+            <a href="leads.html" class="nav-link ${activePage === 'all_leads' ? 'active' : ''}">
+                <span class="nav-icon">${getIcon('columns')}</span>
+                <span>All Leads Database</span>
             </a>
 
             <div class="nav-section-title">Lead Generation</div>
@@ -459,13 +533,6 @@ function renderSidebar(activePage) {
                 <span>Website Analyzer</span>
             </a>
 
-            <div class="nav-section-title">Sales</div>
-            <a href="leads.html?outreach=Contacted" class="nav-link ${activePage === 'outreach' ? 'active' : ''}">
-                <span class="nav-icon">${getIcon('outreach')}</span>
-                <span>Outreach</span>
-            </a>
-            <a href="followups.html" class="nav-link ${activePage === 'followups' ? 'active' : ''}">
-                <span class="nav-icon">${getIcon('followups')}</span>
                 <span>Follow-ups</span>
             </a>
             <a href="leads.html?deal=Open" class="nav-link ${activePage === 'deals' ? 'active' : ''}">

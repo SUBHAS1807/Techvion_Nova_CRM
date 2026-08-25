@@ -110,6 +110,12 @@ class Lead(Base):
     # 26. Remarks
     remarks = Column(Text, nullable=True)
 
+    # 27. Contacted CRM Upgrade Fields
+    contact_method = Column(String(50), nullable=True, index=True)
+    last_contacted_date = Column(DateTime, nullable=True, index=True)
+    followup_count = Column(Integer, default=0, nullable=False)
+    next_action = Column(String(255), nullable=True)
+
     # ─── Additional Google Places & Internal Fields ─────────────────────
     # Google Place ID (Unique official Place ID)
     google_place_id = Column(String(255), nullable=True, index=True)
@@ -204,6 +210,10 @@ class Lead(Base):
             "project_status": self.project_status or "Not Started",
             "next_followup_date": self.next_followup_date.isoformat() if self.next_followup_date else None,
             "remarks": self.remarks or "",
+            "contact_method": self.contact_method or "",
+            "last_contacted_date": self.last_contacted_date.isoformat() if self.last_contacted_date else None,
+            "followup_count": self.followup_count or 0,
+            "next_action": self.next_action or "",
             "google_place_id": self.google_place_id or "",
             "google_maps_url": self.google_maps_url or self.source_url or "",
             "source_url": self.source_url or self.google_maps_url or "",
