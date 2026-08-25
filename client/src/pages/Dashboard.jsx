@@ -298,7 +298,27 @@ export default function Dashboard() {
                     >
                       {lead.website_status}
                     </span>
-                    <span className="text-[11px] font-medium bg-neutral-200 text-neutral-800 px-2 py-0.5 rounded">
+                    <span
+                      className={`text-[11px] font-semibold px-2 py-0.5 rounded ${
+                        lead.lead_status === 'Contacted'
+                          ? 'bg-emerald-200 text-emerald-900'
+                          : lead.lead_status === 'Follow-up'
+                          ? 'bg-amber-200 text-amber-900'
+                          : lead.lead_status === 'Interested'
+                          ? 'bg-blue-200 text-blue-900'
+                          : lead.lead_status === 'Meeting'
+                          ? 'bg-violet-200 text-violet-900'
+                          : lead.lead_status === 'Proposal Sent'
+                          ? 'bg-orange-200 text-orange-900'
+                          : lead.lead_status === 'Converted'
+                          ? 'bg-emerald-300 text-emerald-900'
+                          : lead.lead_status === 'Not Interested'
+                          ? 'bg-red-100 text-red-800'
+                          : lead.lead_status === 'Closed'
+                          ? 'bg-neutral-200 text-neutral-800'
+                          : 'bg-neutral-200 text-neutral-800'
+                      }`}
+                    >
                       {lead.lead_status}
                     </span>
                   </div>

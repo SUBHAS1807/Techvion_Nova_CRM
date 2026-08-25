@@ -31,6 +31,29 @@ import {
 } from '../utils/api';
 import LeadModal from '../components/LeadModal';
 
+function getStatusRowClasses(status) {
+  switch (status) {
+    case 'Contacted':
+      return 'bg-emerald-50/80 hover:bg-emerald-100/60';
+    case 'Follow-up':
+      return 'bg-amber-50/60 hover:bg-amber-100/50';
+    case 'Interested':
+      return 'bg-blue-50/60 hover:bg-blue-100/50';
+    case 'Meeting':
+      return 'bg-violet-50/60 hover:bg-violet-100/50';
+    case 'Proposal Sent':
+      return 'bg-orange-50/60 hover:bg-orange-100/50';
+    case 'Converted':
+      return 'bg-emerald-100/60 hover:bg-emerald-200/50';
+    case 'Not Interested':
+      return 'bg-red-50/50 hover:bg-red-100/40';
+    case 'Closed':
+      return 'bg-neutral-100/60 hover:bg-neutral-200/50';
+    default:
+      return 'hover:bg-neutral-50/80';
+  }
+}
+
 export default function Leads() {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -666,7 +689,7 @@ export default function Leads() {
                   return (
                     <tr
                       key={lead.lead_id}
-                      className={`hover:bg-neutral-50/80 transition-colors ${
+                      className={`transition-colors ${getStatusRowClasses(lead.lead_status)} ${
                         isSelected ? 'bg-neutral-100/70' : ''
                       }`}
                     >
@@ -791,7 +814,25 @@ export default function Leads() {
                         <select
                           value={lead.lead_status}
                           onChange={(e) => handleInlineStatusChange(lead.lead_id, e.target.value)}
-                          className="bg-neutral-100 hover:bg-neutral-200 text-neutral-900 text-xs font-semibold py-1 px-2 rounded-lg border-0 focus:ring-1 focus:ring-black cursor-pointer transition-colors"
+                          className={`text-xs font-semibold py-1 px-2 rounded-lg border-0 focus:ring-1 focus:ring-black cursor-pointer transition-colors ${
+                            lead.lead_status === 'Contacted'
+                              ? 'bg-emerald-200 text-emerald-900 hover:bg-emerald-300'
+                              : lead.lead_status === 'Follow-up'
+                              ? 'bg-amber-200 text-amber-900 hover:bg-amber-300'
+                              : lead.lead_status === 'Interested'
+                              ? 'bg-blue-200 text-blue-900 hover:bg-blue-300'
+                              : lead.lead_status === 'Meeting'
+                              ? 'bg-violet-200 text-violet-900 hover:bg-violet-300'
+                              : lead.lead_status === 'Proposal Sent'
+                              ? 'bg-orange-200 text-orange-900 hover:bg-orange-300'
+                              : lead.lead_status === 'Converted'
+                              ? 'bg-emerald-300 text-emerald-900 hover:bg-emerald-400'
+                              : lead.lead_status === 'Not Interested'
+                              ? 'bg-red-100 text-red-800 hover:bg-red-200'
+                              : lead.lead_status === 'Closed'
+                              ? 'bg-neutral-200 text-neutral-800 hover:bg-neutral-300'
+                              : 'bg-neutral-100 text-neutral-900 hover:bg-neutral-200'
+                          }`}
                         >
                           {filterOptions.statuses?.map((st) => (
                             <option key={st} value={st}>
